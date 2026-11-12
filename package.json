@@ -41,6 +41,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Hanssen0-Alter-Ego/ckb-wasm-verifier.git"
+    "url": "git+https://github.com/Hanssen0-Alter-Ego/ckb-vm-js.git"
   }
 }

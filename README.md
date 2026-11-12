@@ -1,4 +1,4 @@
-# ckb-wasm-verifier
+# ckb-vm-js
 
 Offline CKB transaction verification in WebAssembly, with a JavaScript/TypeScript API.
 
@@ -36,8 +36,8 @@ The foundation API has no network selector, chain-state cache, RPC client or aut
 ## Build
 
 ```sh
-git clone --recurse-submodules https://github.com/Hanssen0-Alter-Ego/ckb-wasm-verifier.git
-cd ckb-wasm-verifier
+git clone --recurse-submodules https://github.com/Hanssen0-Alter-Ego/ckb-vm-js.git
+cd ckb-vm-js
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.105 --locked
 npm ci
@@ -51,6 +51,8 @@ node examples/verify.mjs # runs the included valid fixture offline
 ```
 
 Rust 1.95.0 is pinned in `rust-toolchain.toml`. `clang` is needed for upstream secp256k1 C code; `CC_wasm32_unknown_unknown=/path/to/clang` overrides it. The generated module targets **wasm32-unknown-unknown**, not WASI, and does not require SharedArrayBuffer or cross-origin isolation.
+
+The repository is named `ckb-vm-js`; the package/import name remains `@hanssen0-alter-ego/ckb-wasm-verifier`.
 
 Build before installing from a checkout or making an npm tarball. No npm registry publication is claimed. `pkg/` contains the generated JS loader, WASM and declarations and is included in the package tarball.
 
@@ -72,7 +74,7 @@ const oneGroup = await verifier.verifyScriptGroup(request, {
 
 For fully offline initialization in Node, pass `wasm: await readFile(...)`. For browsers, use `createWorkerVerifier` to keep CPU-bound verification off the UI thread. The returned Promise does not by itself make direct verification non-blocking. See [JavaScript and Worker usage](docs/javascript.md).
 
-The v0.2 foundation interface has 62 synthetic transaction/context fixtures, all passing locally in native and real WASM execution, including comparison with an unmodified-upstream native build. JavaScript/TypeScript and offline installed-tarball checks also pass. Browser execution is checked by the [CI workflow](https://github.com/Hanssen0-Alter-Ego/ckb-wasm-verifier/actions); inspect the check for the exact commit rather than assuming a previous browser pass covers this revision. See the [verification record and limits](docs/verification.md).
+The v0.2 foundation interface has 62 synthetic transaction/context fixtures, all passing locally in native and real WASM execution, including comparison with an unmodified-upstream native build. JavaScript/TypeScript and offline installed-tarball checks also pass. Browser execution is checked by the [CI workflow](https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/actions); inspect the check for the exact commit rather than assuming a previous browser pass covers this revision. See the [verification record and limits](docs/verification.md).
 
 ## Request
 

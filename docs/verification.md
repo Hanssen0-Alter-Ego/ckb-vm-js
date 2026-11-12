@@ -79,7 +79,7 @@ Four custom-chain fixtures isolate the DAO size gate: submitted mode before bloc
 ## Historical v0.1 CI browser evidence
 
 The complete workflow passed at engine commit `184af5d80ce8a2798d432c821b475ef03b3f6bc6`:
-https://github.com/Hanssen0-Alter-Ego/ckb-wasm-verifier/actions/runs/43139332773
+https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/actions/runs/43139332773
 
 This includes Chromium running a real dedicated Worker with `crossOriginIsolated === false` and no SharedArrayBuffer. After module initialization from localhost, browser networking is disabled before full transaction, selected group and failure fixtures are verified. It also includes native/WASM parity against the separately built **unmodified upstream** native engine. This evidence belongs to that exact earlier commit. In particular, it does not establish that the later foundation-interface refactor passed; inspect the current commit’s checks separately.
 
