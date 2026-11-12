@@ -56,6 +56,10 @@ The repository and npm package/import name are `ckb-vm-js`.
 
 Build before installing from a checkout or making an npm tarball. No npm registry publication is claimed. `pkg/` contains the generated JS loader, WASM and declarations and is included in the package tarball.
 
+## Publishing
+
+[发布工作流与 Trusted Publisher 配置指南](docs/publishing.md) explains the one-time npm bootstrap, exact trust fields, protected environment and release process. Manual runs only build/test/package; publishing a GitHub Release is the only live npm trigger. Adding this workflow does not configure accounts or publish a package.
+
 ## Use
 
 ```js

@@ -1,0 +1,138 @@
+name: Publish npm package
+
+# A manual run only builds/tests/packages. Only publishing a GitHub Release
+# can enter the OIDC job. A push, PR or comment never publishes this package.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to validate and package (never publishes)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+concurrency:
+  group: npm-publish-ckb-vm-js
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  RELEASE_PRERELEASE: ${{ toJSON(github.event.release.prerelease) }}
+  NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+
+jobs:
+  build:
+    if: github.repository == 'Hanssen0-Alter-Ego/ckb-vm-js' && (github.event_name == 'release' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      commit_sha: ${{ steps.metadata.outputs.commit_sha }}
+      filename: ${{ steps.package.outputs.filename }}
+      sha256: ${{ steps.package.outputs.sha256 }}
+      artifact_name: ckb-vm-js-release-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Reject non-version refs before checkout
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo 'Use an existing vMAJOR.MINOR.PATCH[-prerelease] tag.' >&2
+            exit 1
+          fi
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Use a pinned OIDC-capable npm CLI
+        run: npm install --global npm@11.21.0 --ignore-scripts
+      - name: Verify tag, version, release kind and main ancestry
+        id: metadata
+        run: node scripts/release.mjs check
+      - name: Install build tools and dependencies (no restored build cache)
+        run: |
+          rustup show
+          cargo install wasm-bindgen-cli --version 0.2.105 --locked
+          npm ci --ignore-scripts
+      - name: Build unmodified native reference
+        run: |
+          cargo build --locked -p ckb-wasm-verifier --bin verify
+          cp target/debug/verify target/verify-upstream
+      - name: Build and verify the package
+        run: |
+          ./scripts/prepare.sh
+          cargo fmt --all -- --check
+          cargo clippy --locked -p ckb-wasm-verifier --all-targets --no-deps -- -D warnings
+          cargo test --locked -p ckb-wasm-verifier
+          cargo build --locked -p ckb-wasm-verifier --bin verify
+          npm test
+          npm run typecheck
+          ./scripts/build-wasm.sh
+          npm run test:wasm
+          npm run test:differential
+          CKB_NATIVE_VERIFY="$PWD/target/verify-upstream" npm run test:differential
+          npx playwright install --with-deps chromium
+          npm run test:browser
+      - name: Pack once and test the exact tarball
+        run: |
+          npm pack --ignore-scripts
+          node scripts/test-package.mjs
+      - name: Record tested artifact checksum
+        id: package
+        run: node scripts/release.mjs artifact
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ckb-vm-js-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            dist/*.tgz
+            dist/SHA256SUMS
+          if-no-files-found: error
+      - name: Explain manual dry-run result
+        if: github.event_name == 'workflow_dispatch'
+        run: echo 'Dry run complete. Tested tarball uploaded; no npm authentication, publication or GitHub Release creation was attempted.' >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.build.outputs.commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: npm install --global npm@11.21.0 --ignore-scripts
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: dist
+      - name: Recheck identity, immutable tarball and registry version
+        id: ready
+        env:
+          EXPECTED_SHA256: ${{ needs.build.outputs.sha256 }}
+        run: node scripts/release.mjs prepublish
+      - name: Publish tested tarball using npm Trusted Publishing
+        env:
+          TARBALL: ${{ steps.ready.outputs.filename }}
+          DIST_TAG: ${{ steps.ready.outputs.dist_tag }}
+        run: |
+          npm publish "./dist/$TARBALL" --ignore-scripts --access public --provenance --tag "$DIST_TAG" --registry https://registry.npmjs.org
+          echo 'npm accepted the publish request. Registry scanning can delay install availability; check the package before retrying any uncertain publish.' >> "$GITHUB_STEP_SUMMARY"
