@@ -4,7 +4,7 @@ Offline CKB transaction verification in WebAssembly, with a JavaScript/TypeScrip
 
 This project uses **CKB's own transaction verifiers and CKB-VM**, pinned as Git submodules. It does not substitute a JavaScript VM. The caller supplies the consensus parameters consumed by the pinned transaction-verification paths. Both the ordinary full-transaction API and a selected-script-group API are available.
 
-**Early experimental release. Not audited. A successful result is relative to the supplied snapshot, not proof that the network will accept the transaction.** Do not use it as the sole safeguard for funds.
+**Unreleased experimental implementation. Not audited. A successful result is relative to the supplied snapshot, not proof that the network will accept the transaction.** Do not use it as the sole safeguard for funds.
 
 ## What `verify` checks
 
@@ -54,7 +54,7 @@ Rust 1.95.0 is pinned in `rust-toolchain.toml`. `clang` is needed for upstream s
 
 The repository and npm package/import name are `ckb-vm-js`.
 
-Build before installing from a checkout or making an npm tarball. No npm registry publication is claimed. `pkg/` contains the generated JS loader, WASM and declarations and is included in the package tarball.
+Build before installing from a checkout or making an npm tarball. The package has not been published to npm. `pkg/` contains the generated JS loader, WASM and declarations and is included in the package tarball.
 
 ## Publishing
 
@@ -78,7 +78,7 @@ const oneGroup = await verifier.verifyScriptGroup(request, {
 
 For fully offline initialization in Node, pass `wasm: await readFile(...)`. For browsers, use `createWorkerVerifier` to keep CPU-bound verification off the UI thread. The returned Promise does not by itself make direct verification non-blocking. See [JavaScript and Worker usage](docs/javascript.md).
 
-The v0.2 foundation interface has 62 synthetic transaction/context fixtures, all passing locally in native and real WASM execution, including comparison with an unmodified-upstream native build. JavaScript/TypeScript and offline installed-tarball checks also pass. Browser execution is checked by the [CI workflow](https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/actions); inspect the check for the exact commit rather than assuming a previous browser pass covers this revision. See the [verification record and limits](docs/verification.md).
+The foundation interface has 62 synthetic transaction/context fixtures, all passing locally in native and real WASM execution, including comparison with an unmodified-upstream native build. JavaScript/TypeScript and offline installed-tarball checks also pass. Browser execution is checked by the [CI workflow](https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/actions); inspect the check for the exact commit rather than assuming a previous browser pass covers this revision. See the [verification record and limits](docs/verification.md).
 
 ## Request
 
@@ -120,10 +120,6 @@ const request = {
 The snippet is a shape illustration, not a usable network configuration. Cells must include every input, direct dep, dep-group cell and expanded member. Confirmed origins require their creation headers. `transaction_info.index` is the transaction's index in its creation block, not the cell's output index; zero means cellbase. Its block number and packed epoch must match the supplied creation header. For resolved inputs/dependencies with known origins and declared header deps, each corresponding hash must have an explicit extension entry: bytes when present, `null` when absent. Missing context is an error, never treated as successful verification.
 
 Timestamp-based `since` may require the caller-configured median-time ancestor window. Supply the linked header chain, stopping at genesis. Header JSON is the RPC Header body; the block hash is recomputed, not trusted from a separate asserted hash.
-
-### Migration from v0.1
-
-The old `context.network` is removed. Supply `context.consensus` explicitly; do not assume a preset is selected implicitly. The old misleading `tip_header` was a candidate header. To retain exact-block semantics, move it to `context.verification.candidate_header`, set `phase: 'committed'`, provide the target `transaction_index`, and put its actual parent in `context.tip_header`. Do not repeat that parent in `headers`. Omitting `verification` intentionally selects **submitted**, not the old committed behavior. JS method names are unchanged.
 
 Success returns `{ ok: true, scope: 'transaction' | 'script_group', cycles, fee?, groups, chain_state_verified: false }`. Failure returns `{ ok: false, error: { code, message } }`. Group order is not part of the API. Error messages include upstream details and may change with upstream versions.
 
