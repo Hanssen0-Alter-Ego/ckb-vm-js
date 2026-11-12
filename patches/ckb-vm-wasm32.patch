@@ -1,0 +1,91 @@
+diff --git a/src/decoder.rs b/src/decoder.rs
+index 1959c35..76ef67d 100644
+--- a/src/decoder.rs
++++ b/src/decoder.rs
+@@ -93,7 +93,7 @@ impl Decoder {
+     pub fn decode_raw<M: Memory>(&mut self, memory: &mut M, pc: u64) -> Result<Instruction, Error> {
+         // since we are using u64::MAX as the default key in the instruction cache, have to check out of bound
+         // error first.
+-        if pc as usize >= memory.memory_size() {
++        if pc >= memory.memory_size() as u64 {
+             return Err(Error::MemOutOfBound);
+         }
+         let instruction_cache_key = {
+diff --git a/src/elf.rs b/src/elf.rs
+index c136302..36a7017 100644
+--- a/src/elf.rs
++++ b/src/elf.rs
+@@ -145,15 +145,19 @@ pub fn parse_elf<R: Register>(program: &Bytes, version: u32) -> Result<ProgramMe
+             return Err(Error::ElfBits);
+         }
+         let ctx = Ctx::new(container, endianness);
+-        let program_headers = GoblinProgramHeader::parse(
+-            program,
+-            header.e_phoff as usize,
+-            header.e_phnum as usize,
+-            ctx,
+-        )?
+-        .iter()
+-        .map(ProgramHeader::from_v0)
+-        .collect();
++        // ELF64 offsets remain u64 on wasm32. A zero-entry table does not
++        // dereference its offset; otherwise preserve Goblin's native error.
++        let phoff = if header.e_phnum == 0 {
++            0
++        } else {
++            usize::try_from(header.e_phoff)
++                .map_err(|_| Error::ElfParseError(format!("bad offset {}", header.e_phoff)))?
++        };
++        let program_headers =
++            GoblinProgramHeader::parse(program, phoff, header.e_phnum as usize, ctx)?
++                .iter()
++                .map(ProgramHeader::from_v0)
++                .collect();
+         (header.e_entry, program_headers)
+     } else {
+         use goblin_v040::container::Ctx;
+@@ -165,15 +169,19 @@ pub fn parse_elf<R: Register>(program: &Bytes, version: u32) -> Result<ProgramMe
+             return Err(Error::ElfBits);
+         }
+         let ctx = Ctx::new(container, endianness);
+-        let program_headers = GoblinProgramHeader::parse(
+-            program,
+-            header.e_phoff as usize,
+-            header.e_phnum as usize,
+-            ctx,
+-        )?
+-        .iter()
+-        .map(ProgramHeader::from_v1)
+-        .collect();
++        // ELF64 offsets remain u64 on wasm32. A zero-entry table does not
++        // dereference its offset; otherwise preserve Goblin's native error.
++        let phoff = if header.e_phnum == 0 {
++            0
++        } else {
++            usize::try_from(header.e_phoff)
++                .map_err(|_| Error::ElfParseError(format!("bad offset {}", header.e_phoff)))?
++        };
++        let program_headers =
++            GoblinProgramHeader::parse(program, phoff, header.e_phnum as usize, ctx)?
++                .iter()
++                .map(ProgramHeader::from_v1)
++                .collect();
+         (header.e_entry, program_headers)
+     };
+     let mut bytes: u64 = 0;
+diff --git a/src/machine/mod.rs b/src/machine/mod.rs
+index 3ef14ac..e0abbd2 100644
+--- a/src/machine/mod.rs
++++ b/src/machine/mod.rs
+@@ -892,7 +892,10 @@ impl<'a, M: Memory> Iterator for FlattenedArgsReader<'a, M> {
+ }
+ impl<'a, M: Memory> ExactSizeIterator for FlattenedArgsReader<'a, M> {
+     fn len(&self) -> usize {
+-        self.argc.to_u64() as usize
++        // Never turn a nonzero guest argc into the zero-argument fast path.
++        // An unrepresentable count cannot fit in VM memory; iteration will
++        // return its existing memory/stack error before completing.
++        usize::try_from(self.argc.to_u64()).unwrap_or(usize::MAX)
+     }
+ }
+ 

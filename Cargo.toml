@@ -1,0 +1,14 @@
+[workspace]
+members = ["crates/verifier"]
+exclude = ["vendor/ckb", "vendor/ckb-vm"]
+resolver = "2"
+
+[patch.crates-io]
+ckb-vm = { path = "vendor/ckb-vm" }
+ckb-vm-definitions = { path = "vendor/ckb-vm/definitions" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = "debuginfo"

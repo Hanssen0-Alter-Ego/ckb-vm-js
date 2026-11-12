@@ -1,0 +1,42 @@
+{
+  "name": "@hanssen0-alter-ego/ckb-wasm-verifier",
+  "version": "0.1.0",
+  "description": "Offline CKB transaction and script-group verification in WebAssembly",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "js",
+    "pkg/*.js",
+    "pkg/*.wasm",
+    "pkg/*.d.ts"
+  ],
+  "exports": {
+    ".": {
+      "types": "./js/index.d.ts",
+      "import": "./js/index.js"
+    },
+    "./worker": "./js/worker.js"
+  },
+  "scripts": {
+    "test": "node --test tests/js/*.test.js",
+    "test:wasm": "node --test tests/js/wasm.integration.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "test:browser": "playwright test",
+    "test:differential": "node --test tests/js/differential.integration.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "typescript": "5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hanssen0-Alter-Ego/ckb-wasm-verifier.git"
+  }
+}

@@ -1,0 +1,6 @@
+[submodule "vendor/ckb-vm"]
+	path = vendor/ckb-vm
+	url = https://github.com/nervosnetwork/ckb-vm.git
+[submodule "vendor/ckb"]
+	path = vendor/ckb
+	url = https://github.com/nervosnetwork/ckb.git

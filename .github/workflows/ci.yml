@@ -1,0 +1,48 @@
+name: verify
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  native-wasm-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install Rust and WASM bindings generator
+        run: |
+          rustup show
+          cargo install wasm-bindgen-cli --version 0.2.105 --locked
+      - name: Build unmodified native upstream oracle
+        run: |
+          cargo build --locked -p ckb-wasm-verifier --bin verify
+          cp target/debug/verify target/verify-upstream
+      - name: Prepare pinned upstream compatibility patches
+        run: ./scripts/prepare.sh
+      - name: Native checks
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --locked -p ckb-wasm-verifier --all-targets --no-deps -- -D warnings
+          cargo test --locked -p ckb-wasm-verifier
+          cargo build --locked -p ckb-wasm-verifier --bin verify
+      - run: npm ci
+      - run: npm test && npm run typecheck
+      - run: ./scripts/build-wasm.sh
+      - run: npm run test:wasm && npm run test:differential
+      - name: Compare with unmodified native upstream
+        run: CKB_NATIVE_VERIFY="$PWD/target/verify-upstream" npm run test:differential
+      - name: Browser Worker without cross-origin isolation
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:browser
+      - name: Package built artifact
+        run: npm pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ckb-wasm-verifier-package
+          path: '*.tgz'

@@ -1,0 +1,153 @@
+diff --git a/script/src/syscalls/exec.rs b/script/src/syscalls/exec.rs
+index be1e2a634..77f06c41f 100644
+--- a/script/src/syscalls/exec.rs
++++ b/script/src/syscalls/exec.rs
+@@ -109,7 +109,9 @@ impl<Mac: SupportMachine, DL: CellDataProvider + Send + Sync + Clone> Syscalls<M
+ 
+         let data = match place {
+             Place::CellData => {
+-                let cell = self.fetch_cell(source, index as usize);
++                let cell = usize::try_from(index)
++                    .map_err(|_| INDEX_OUT_OF_BOUND)
++                    .and_then(|index| self.fetch_cell(source, index));
+                 if let Err(err) = cell {
+                     machine.set_register(A0, Mac::REG::from_u8(err));
+                     return Ok(true);
+@@ -126,7 +128,9 @@ impl<Mac: SupportMachine, DL: CellDataProvider + Send + Sync + Clone> Syscalls<M
+                     })?
+             }
+             Place::Witness => {
+-                let witness = self.fetch_witness(source, index as usize);
++                let witness = usize::try_from(index)
++                    .map_err(|_| INDEX_OUT_OF_BOUND)
++                    .and_then(|index| self.fetch_witness(source, index));
+                 if let Err(err) = witness {
+                     machine.set_register(A0, Mac::REG::from_u8(err));
+                     return Ok(true);
+@@ -143,13 +147,13 @@ impl<Mac: SupportMachine, DL: CellDataProvider + Send + Sync + Clone> Syscalls<M
+         let data = if length == 0 {
+             data.slice(offset..data_size)
+         } else {
+-            // Both offset and length are <= u32::MAX, so offset.checked_add(length) will be always a Some.
+-            let end = offset.checked_add(length).ok_or(VMError::MemOutOfBound)?;
+-            if end > data_size {
++            // Preserve the 64-bit host sum before testing the slice bounds.
++            let end = offset as u64 + length as u64;
++            if end > data_size as u64 {
+                 machine.set_register(A0, Mac::REG::from_u8(SLICE_OUT_OF_BOUND));
+                 return Ok(true);
+             }
+-            data.slice(offset..end)
++            data.slice(offset..end as usize)
+         };
+         let argc = machine.registers()[A4].to_u64();
+         let mut addr = machine.registers()[A5].to_u64();
+diff --git a/script/src/syscalls/load_block_extension.rs b/script/src/syscalls/load_block_extension.rs
+index 4159f6a5e..b12c7fb42 100644
+--- a/script/src/syscalls/load_block_extension.rs
++++ b/script/src/syscalls/load_block_extension.rs
+@@ -115,7 +115,9 @@ impl<DL: ExtensionProvider + Send + Sync + Clone, Mac: SupportMachine> Syscalls<
+         let index = machine.registers()[A3].to_u64();
+         let source = Source::parse_from_u64(machine.registers()[A4].to_u64())?;
+ 
+-        let extension = self.fetch_extension(source, index as usize);
++        let extension = usize::try_from(index)
++            .map_err(|_| INDEX_OUT_OF_BOUND)
++            .and_then(|index| self.fetch_extension(source, index));
+         if let Err(err) = extension {
+             machine.set_register(A0, Mac::REG::from_u8(err));
+             return Ok(true);
+diff --git a/script/src/syscalls/load_cell.rs b/script/src/syscalls/load_cell.rs
+index fb596bb2e..aaaeadc5a 100644
+--- a/script/src/syscalls/load_cell.rs
++++ b/script/src/syscalls/load_cell.rs
+@@ -176,7 +176,9 @@ impl<Mac: SupportMachine, DL: CellDataProvider + Send + Sync + Clone> Syscalls<M
+         let index = machine.registers()[A3].to_u64();
+         let source = Source::parse_from_u64(machine.registers()[A4].to_u64())?;
+ 
+-        let cell = self.fetch_cell(source, index as usize);
++        let cell = usize::try_from(index)
++            .map_err(|_| INDEX_OUT_OF_BOUND)
++            .and_then(|index| self.fetch_cell(source, index));
+         if let Err(err) = cell {
+             machine.set_register(A0, Mac::REG::from_u8(err));
+             return Ok(true);
+diff --git a/script/src/syscalls/load_header.rs b/script/src/syscalls/load_header.rs
+index a1ddafaa2..b2b3a638a 100644
+--- a/script/src/syscalls/load_header.rs
++++ b/script/src/syscalls/load_header.rs
+@@ -160,7 +160,9 @@ impl<DL: HeaderProvider + Send + Sync + Clone, Mac: SupportMachine> Syscalls<Mac
+         let index = machine.registers()[A3].to_u64();
+         let source = Source::parse_from_u64(machine.registers()[A4].to_u64())?;
+ 
+-        let header = self.fetch_header(source, index as usize);
++        let header = usize::try_from(index)
++            .map_err(|_| INDEX_OUT_OF_BOUND)
++            .and_then(|index| self.fetch_header(source, index));
+         if let Err(err) = header {
+             machine.set_register(A0, Mac::REG::from_u8(err));
+             return Ok(true);
+diff --git a/script/src/syscalls/load_input.rs b/script/src/syscalls/load_input.rs
+index c44fbadca..710575649 100644
+--- a/script/src/syscalls/load_input.rs
++++ b/script/src/syscalls/load_input.rs
+@@ -102,7 +102,9 @@ impl<Mac: SupportMachine, DL: Send + Sync + Clone> Syscalls<Mac> for LoadInput<D
+         let index = machine.registers()[A3].to_u64();
+         let source = Source::parse_from_u64(machine.registers()[A4].to_u64())?;
+ 
+-        let input = self.fetch_input(source, index as usize);
++        let input = usize::try_from(index)
++            .map_err(|_| INDEX_OUT_OF_BOUND)
++            .and_then(|index| self.fetch_input(source, index));
+         if let Err(err) = input {
+             machine.set_register(A0, Mac::REG::from_u8(err));
+             return Ok(true);
+diff --git a/script/src/syscalls/load_witness.rs b/script/src/syscalls/load_witness.rs
+index aee7f8d47..55955dfe5 100644
+--- a/script/src/syscalls/load_witness.rs
++++ b/script/src/syscalls/load_witness.rs
+@@ -61,7 +61,9 @@ impl<Mac: SupportMachine, DL: Sync + Send + Clone> Syscalls<Mac> for LoadWitness
+         let index = machine.registers()[A3].to_u64();
+         let source = Source::parse_from_u64(machine.registers()[A4].to_u64())?;
+ 
+-        let witness = self.fetch_witness(source, index as usize);
++        let witness = usize::try_from(index)
++            .ok()
++            .and_then(|index| self.fetch_witness(source, index));
+         if witness.is_none() {
+             machine.set_register(A0, Mac::REG::from_u8(INDEX_OUT_OF_BOUND));
+             return Ok(true);
+diff --git a/script/src/types.rs b/script/src/types.rs
+index 3d3b790c1..08f746dbb 100644
+--- a/script/src/types.rs
++++ b/script/src/types.rs
+@@ -1008,10 +1008,10 @@ where
+                 .map(|data| data.raw_data()),
+         }
+         .map(|data| {
+-            let offset = std::cmp::min(offset as usize, data.len());
++            let offset = std::cmp::min(offset, data.len() as u64) as usize;
+             let full_length = data.len() - offset;
+             let real_length = if length > 0 {
+-                std::cmp::min(full_length, length as usize)
++                std::cmp::min(full_length as u64, length) as usize
+             } else {
+                 full_length
+             };
+diff --git a/util/dao/src/lib.rs b/util/dao/src/lib.rs
+index 434e615ea..ba7fdaa79 100644
+--- a/util/dao/src/lib.rs
++++ b/util/dao/src/lib.rs
+@@ -91,9 +91,9 @@ impl<'a, DL: CellDataProvider + HeaderProvider> DaoCalculator<'a, DL> {
+                                     Ok(LittleEndian::read_u64(&header_deps_index_data.unwrap()))
+                                 })
+                                 .and_then(|header_dep_index| {
+-                                    rtx.transaction
+-                                        .header_deps()
+-                                        .get(header_dep_index as usize)
++                                    usize::try_from(header_dep_index)
++                                        .ok()
++                                        .and_then(|index| rtx.transaction.header_deps().get(index))
+                                         .and_then(|hash| header_deps.get(&hash))
+                                         .ok_or(DaoError::InvalidOutPoint)
+                                 })?;

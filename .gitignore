@@ -1,0 +1,10 @@
+/target/
+/node_modules/
+/pkg/
+/dist/
+*.tgz
+.DS_Store
+
+/scripts/env.sh
+/test-results/
+/playwright-report/
