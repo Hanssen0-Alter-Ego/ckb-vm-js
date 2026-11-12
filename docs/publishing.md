@@ -20,7 +20,7 @@
 Trusted Publisher 是**包级设置**。还不存在的 `ckb-vm-js` 不能凭空配置 OIDC 并直接完成首发。由准备拥有该 npm 包的维护者，在确认名称仍可用并审阅内容后，选择一种方式：
 
 1. **交互式首次发布**：下载已经验证的 `ckb-vm-js-0.2.0.tgz`，在自己的终端登录 npm，完成需要的 2FA，再发布该文件。
-2. **先暂存创建包**：新版 npm 支持用交互式会话执行 `npm stage publish` 来创建新包。第一版进入待审批队列，维护者批准后才可安装。创建包之后就能管理设置和配置 Trusted Publisher。这不是匿名/OIDC 自动首次注册。[官方新包暂存说明](https://github.blog/changelog/2026-10-02-npm-staged-publishing-now-supports-creating-new-packages/)
+2. **先暂存创建包**：新版 npm 支持用交互式会话执行 `npm stage publish` 来创建新包。对于尚不存在的包，npm 会立即创建公开的 `0.0.0-stage` 占位版本；实际暂存版本及其内容在维护者批准前不公开。这不是无公开副作用的预演。创建包之后就能管理设置和配置 Trusted Publisher。这不是匿名/OIDC 自动首次注册。[官方暂存说明](https://docs.npmjs.com/staged-publishing/)
 
 只有在你准备实际发布时，才自行运行以下示例，二选一：
 
@@ -31,7 +31,7 @@ npm login --registry=https://registry.npmjs.org
 # A：直接首次发布；这会产生真实的公开 npm 版本。
 npm publish ./ckb-vm-js-0.2.0.tgz --access public --ignore-scripts
 
-# 或 B：创建并暂存第一版；之后到 npm 审阅并批准。
+# 或 B：立即创建公开占位版本，并暂存实际版本；之后到 npm 审阅并批准。
 # 需要支持 stage 的新版 npm，详见官方 staged publishing 文档。
 npm stage publish ./ckb-vm-js-0.2.0.tgz --access public
 ```
