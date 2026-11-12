@@ -1,5 +1,5 @@
 {
-  "name": "@hanssen0-alter-ego/ckb-wasm-verifier",
+  "name": "ckb-vm-js",
   "version": "0.2.0",
   "description": "Offline CKB transaction and script-group verification in WebAssembly",
   "type": "module",

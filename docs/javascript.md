@@ -34,14 +34,14 @@ The GitHub CI artifact contains a ready-to-install `.tgz`. No npm registry
 release is claimed. After downloading and extracting the CI artifact:
 
 ```sh
-npm install ./hanssen0-alter-ego-ckb-wasm-verifier-0.2.0.tgz
+npm install ./ckb-vm-js-0.2.0.tgz
 ```
 
 ```js
 import { readFile } from 'node:fs/promises';
-import { createVerifier } from '@hanssen0-alter-ego/ckb-wasm-verifier';
+import { createVerifier } from 'ckb-vm-js';
 const wasm = await readFile(new URL(import.meta.resolve(
-  '@hanssen0-alter-ego/ckb-wasm-verifier/wasm',
+  'ckb-vm-js/wasm',
 )));
 const verifier = await createVerifier({ wasm });
 ```

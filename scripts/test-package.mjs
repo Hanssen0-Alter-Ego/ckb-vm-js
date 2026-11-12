@@ -9,14 +9,15 @@ const directory = await mkdtemp(path.join(tmpdir(), 'ckb-package-'));
 try {
   await writeFile(path.join(directory, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
   const { version } = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
-  const tarball = path.join(root, `hanssen0-alter-ego-ckb-wasm-verifier-${version}.tgz`);
+  const tarball = path.join(root, `ckb-vm-js-${version}.tgz`);
   execFileSync('npm', ['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--cache', path.join(directory, 'cache'), tarball], { cwd: directory, stdio: 'inherit' });
   const { request } = JSON.parse(await readFile(new URL('../fixtures/valid.json', import.meta.url), 'utf8'));
   await writeFile(path.join(directory, 'request.json'), JSON.stringify(request));
   await writeFile(path.join(directory, 'verify.mjs'), `
     import { readFile } from 'node:fs/promises';
-    import { createVerifier } from '@hanssen0-alter-ego/ckb-wasm-verifier';
-    const wasm = await readFile(new URL(import.meta.resolve('@hanssen0-alter-ego/ckb-wasm-verifier/wasm')));
+    import { createVerifier } from 'ckb-vm-js';
+    const wasm = await readFile(new URL(import.meta.resolve('ckb-vm-js/wasm')));
+    await readFile(new URL(import.meta.resolve('ckb-vm-js/worker')));
     const verifier = await createVerifier({ wasm });
     const request = JSON.parse(await readFile('./request.json', 'utf8'));
     const result = await verifier.verify(request);

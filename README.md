@@ -52,7 +52,7 @@ node examples/verify.mjs # runs the included valid fixture offline
 
 Rust 1.95.0 is pinned in `rust-toolchain.toml`. `clang` is needed for upstream secp256k1 C code; `CC_wasm32_unknown_unknown=/path/to/clang` overrides it. The generated module targets **wasm32-unknown-unknown**, not WASI, and does not require SharedArrayBuffer or cross-origin isolation.
 
-The repository is named `ckb-vm-js`; the package/import name remains `@hanssen0-alter-ego/ckb-wasm-verifier`.
+The repository and npm package/import name are `ckb-vm-js`.
 
 Build before installing from a checkout or making an npm tarball. No npm registry publication is claimed. `pkg/` contains the generated JS loader, WASM and declarations and is included in the package tarball.
 

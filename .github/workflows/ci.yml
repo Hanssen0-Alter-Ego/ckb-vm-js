@@ -46,5 +46,5 @@ jobs:
           node scripts/test-package.mjs
       - uses: actions/upload-artifact@v4
         with:
-          name: ckb-wasm-verifier-package
+          name: ckb-vm-js-package
           path: '*.tgz'
