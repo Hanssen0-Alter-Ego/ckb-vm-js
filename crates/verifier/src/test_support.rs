@@ -7,6 +7,29 @@ use ckb_types::{
 };
 use serde_json::{Value, json};
 
+// Fixture-only adapter. The shipped verify implementation does not load presets.
+fn fixture_consensus() -> Value {
+    use ckb_chain_spec::ChainSpec;
+    use ckb_resource::Resource;
+    use std::sync::OnceLock;
+    static PARAMS: OnceLock<Value> = OnceLock::new();
+    PARAMS.get_or_init(|| {
+        let c = ChainSpec::load_from(&Resource::bundled("specs/mainnet.toml".into())).unwrap().build_consensus().unwrap();
+        let h = |n: u64| format!("0x{n:x}");
+        // Query the exact pinned upstream activation instead of duplicating a network constant.
+        let activation = (0..100_000).find(|epoch| c.rfc0044_active(*epoch)).unwrap();
+        json!({
+            "tx_version":h(c.tx_version().into()), "max_block_bytes":h(c.max_block_bytes()),
+            "max_block_cycles":h(c.max_block_cycles()), "cellbase_maturity":h(c.cellbase_maturity().full_value()),
+            "median_time_block_count":h(c.median_time_block_count() as u64),
+            "tx_proposal_window":{"closest":h(c.tx_proposal_window().closest()),"farthest":h(c.tx_proposal_window().farthest())},
+            "dao_type_hash":format!("0x{}",hex::encode(c.dao_type_hash().as_slice())),
+            "hardforks":{"rfc0028_epoch":h(c.hardfork_switch().ckb2021.rfc_0028()),"rfc0032_epoch":h(c.hardfork_switch().ckb2021.rfc_0032()),"rfc0049_epoch":h(c.hardfork_switch().ckb2023.rfc_0049()),"rfc0044_epoch":h(activation)},
+            "starting_block_limiting_dao_withdrawing_lock":h(c.starting_block_limiting_dao_withdrawing_lock())
+        })
+    }).clone()
+}
+
 pub fn fixture(program: &[u8]) -> Value {
     let epoch = EpochNumberWithFraction::new(20_000, 0, 1000);
     let origin = HeaderBuilder::default().number(100u64).epoch(epoch).build();
@@ -26,7 +49,7 @@ pub fn fixture(program: &[u8]) -> Value {
     let tip_rpc = rpc::Header::from(tip.data());
     json!({
         "transaction":{"version":"0x0","cell_deps":[{"out_point":dep_point,"dep_type":"code"}],"header_deps":[],"inputs":[{"since":"0x0","previous_output":input_point}],"outputs":[cell_output],"outputs_data":["0x"],"witnesses":[]},
-        "context":{"network":"mainnet","tip_header":tip_rpc,"headers":[origin_rpc],"cells":[
+        "context":{"consensus":fixture_consensus(),"tip_header":origin_rpc,"verification":{"phase":"committed","candidate_header":tip_rpc,"transaction_index":"0x2"},"headers":[],"cells":[
             {"out_point":input_point,"output":cell_output,"data":"0x","transaction_info":origin_info},
             {"out_point":dep_point,"output":cell_output,"data":format!("0x{}",hex::encode(program)),"transaction_info":origin_info}
         ],"extensions":[{"block_hash":hash_hex(origin.hash()),"data":null}]},
@@ -198,7 +221,7 @@ pub fn cases() -> Vec<(&'static str, Value, bool)> {
     bad["context"]["cells"][0]["transaction_info"]["block_number"] = json!("0x63");
     cases.push(("origin-mismatch", bad, false));
     let mut bad = good.clone();
-    bad["context"]["headers"][0]["epoch"] = json!("0x0");
+    bad["context"]["tip_header"]["epoch"] = json!("0x0");
     cases.push(("malformed-header-epoch", bad, false));
     let mut bad = good.clone();
     bad["context"]["extensions"][0]
@@ -218,8 +241,155 @@ pub fn cases() -> Vec<(&'static str, Value, bool)> {
     let mut bad = good.clone();
     bad["transaction"]["version"] = json!("0x1");
     cases.push(("invalid-version", bad, false));
-    let mut bad = good;
+    let mut bad = good.clone();
     bad["max_cycles"] = json!("0xffffffffffffffff");
     cases.push(("excessive-cycle-limit", bad, false));
+    let mut submitted = good.clone();
+    submitted["context"]
+        .as_object_mut()
+        .unwrap()
+        .remove("verification");
+    cases.push(("submitted-valid", submitted.clone(), true));
+    let mut explicit = submitted.clone();
+    explicit["context"]["verification"] = json!({"phase":"submitted"});
+    cases.push(("submitted-explicit", explicit, true));
+    let mut height = submitted.clone();
+    height["transaction"]["inputs"][0]["since"] = json!("0x67"); // tip 100 + 1 + closest 2
+    cases.push(("submitted-earliest-height", height, true));
+    let mut height = good.clone();
+    height["transaction"]["inputs"][0]["since"] = json!("0x67");
+    cases.push(("committed-earliest-height", height, false));
+    let mut unknown = submitted.clone();
+    unknown["context"]["cells"][0]["transaction_info"] = Value::Null;
+    cases.push(("unconfirmed-input", unknown.clone(), true));
+    let mut missing = unknown.clone();
+    missing["context"]["cells"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("transaction_info");
+    cases.push(("omitted-origin", missing, false));
+    for (name, since) in [
+        ("unconfirmed-relative-block", "0x8000000000000000"),
+        ("unconfirmed-relative-timestamp", "0xc000000000000000"),
+    ] {
+        let mut r = unknown.clone();
+        r["transaction"]["inputs"][0]["since"] = json!(since);
+        cases.push((name, r, false));
+    }
+    for (name, syscall) in [
+        ("unconfirmed-load-header", 2072),
+        ("unconfirmed-load-extension", 2104),
+    ] {
+        let mut r = fixture(&syscall_program(syscall, false, false));
+        r["context"].as_object_mut().unwrap().remove("verification");
+        r["context"]["cells"][0]["transaction_info"] = Value::Null;
+        cases.push((name, r, false)); // ITEM_MISSING is a script exit, never a host panic.
+    }
+    let mut same = good.clone();
+    let candidate: rpc::Header =
+        serde_json::from_value(same["context"]["verification"]["candidate_header"].clone())
+            .unwrap();
+    let candidate = packed::Header::from(candidate).into_view();
+    let hash = format!("0x{}", hex::encode(candidate.hash().as_slice()));
+    same["context"]["cells"][0]["transaction_info"] = json!({"block_hash":hash,"block_number":"0x65","block_epoch":format!("0x{:x}",candidate.epoch().full_value()),"index":"0x1"});
+    same["context"]["extensions"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"block_hash":hash,"data":null}));
+    cases.push(("same-block-input", same.clone(), true));
+    let mut order = same.clone();
+    order["context"]["cells"][0]["transaction_info"]["index"] = json!("0x2");
+    cases.push(("same-block-order", order, false));
+    let mut relative = same.clone();
+    relative["transaction"]["inputs"][0]["since"] = json!("0x8000000000000000");
+    cases.push(("same-block-relative-zero", relative.clone(), true));
+    relative["transaction"]["inputs"][0]["since"] = json!("0x8000000000000001");
+    cases.push(("same-block-relative-one", relative, false));
+    let mut future = same;
+    future["context"]
+        .as_object_mut()
+        .unwrap()
+        .remove("verification");
+    future["context"]["headers"] = json!([rpc::Header::from(candidate.data())]);
+    cases.push(("submitted-future-origin", future, false));
+    let mut invalid = good.clone();
+    invalid["context"]["verification"]["candidate_header"]["parent_hash"] =
+        json!(format!("0x{}", "00".repeat(32)));
+    cases.push(("candidate-not-tip-child", invalid, false));
+    let mut custom = submitted.clone();
+    custom["context"]["consensus"]["tx_version"] = json!("0x1");
+    custom["transaction"]["version"] = json!("0x1");
+    cases.push(("custom-tx-version", custom, true));
+    let mut custom = good.clone();
+    custom["context"]["consensus"]["max_block_bytes"] = json!("0x1");
+    cases.push(("custom-byte-limit", custom, false));
+    let mut custom = good.clone();
+    custom["context"]["consensus"]["hardforks"]["rfc0049_epoch"] = json!("0xffffffffffffffff");
+    cases.push(("custom-vm2-not-active", custom, false));
+    let mut custom = good.clone();
+    custom["context"]["cells"][0]["transaction_info"]["index"] = json!("0x0");
+    custom["context"]["consensus"]["cellbase_maturity"] = json!("0x10000000000");
+    cases.push(("custom-zero-maturity", custom, true));
+    let mut median = submitted.clone();
+    median["context"]["consensus"]["median_time_block_count"] = json!("0x1");
+    median["transaction"]["inputs"][0]["since"] = json!("0x4000000000000000");
+    cases.push(("submitted-median-tip", median.clone(), true));
+    median["context"]["consensus"]["median_time_block_count"] = json!("0x0");
+    cases.push(("zero-median-count", median, false));
+    let mut overflow = submitted.clone();
+    overflow["context"]["tip_header"]["number"] = json!("0xffffffffffffffff");
+    cases.push(("submitted-height-overflow", overflow, false));
+    let mut legacy = submitted;
+    legacy["context"]["network"] = json!("mainnet");
+    cases.push(("legacy-network-rejected", legacy, false));
+
+    // Custom-chain DAO discriminator using the tiny success program: isolate
+    // the wrapper's upstream DAO size gate, not real Nervos DAO script behavior.
+    let mut dao = good.clone();
+    let program_type: rpc::Script =
+        serde_json::from_value(dao["context"]["cells"][0]["output"]["lock"].clone()).unwrap();
+    let dao_hash = packed::Script::from(program_type).calc_script_hash();
+    let dao_hash = format!("0x{}", hex::encode(dao_hash.as_slice()));
+    dao["context"]["cells"][1]["output"]["type"] =
+        dao["context"]["cells"][0]["output"]["lock"].clone();
+    let dao_script = json!({"code_hash":dao_hash,"hash_type":"type","args":"0x"});
+    dao["context"]["cells"][0]["output"]["type"] = dao_script.clone();
+    dao["transaction"]["outputs"][0]["type"] = dao_script;
+    dao["context"]["cells"][0]["data"] = json!("0x0000000000000000");
+    dao["transaction"]["outputs_data"][0] = json!("0x6400000000000000");
+    dao["transaction"]["outputs"][0]["lock"]["args"] = json!("0x01");
+    dao["context"]["consensus"]["dao_type_hash"] = json!(dao_hash);
+    dao["context"]["consensus"]["starting_block_limiting_dao_withdrawing_lock"] = json!("0x0");
+    dao["context"]["consensus"]["hardforks"]["rfc0044_epoch"] = json!("0x4e21"); // parent 20,000, activation 20,001
+    cases.push(("dao-size-committed-before-activation", dao.clone(), true));
+    let mut pool_dao = dao.clone();
+    pool_dao["context"]
+        .as_object_mut()
+        .unwrap()
+        .remove("verification");
+    cases.push(("dao-size-submitted-before-activation", pool_dao, false));
+    dao["context"]["consensus"]["hardforks"]["rfc0044_epoch"] = json!("0x4e20");
+    cases.push(("dao-size-committed-active", dao.clone(), false));
+    dao["context"]["consensus"]["starting_block_limiting_dao_withdrawing_lock"] = json!("0x65");
+    cases.push(("dao-size-before-origin-threshold", dao, true));
+
+    let mut genesis = good;
+    genesis["context"]
+        .as_object_mut()
+        .unwrap()
+        .remove("verification");
+    let header = HeaderBuilder::default().build();
+    let hash = format!("0x{}", hex::encode(header.hash().as_slice()));
+    genesis["context"]["tip_header"] = json!(rpc::Header::from(header.data()));
+    for cell in genesis["context"]["cells"].as_array_mut().unwrap() {
+        cell["transaction_info"] =
+            json!({"block_hash":hash,"block_number":"0x0","block_epoch":"0x0","index":"0x1"});
+    }
+    genesis["context"]["extensions"] = json!([{"block_hash":hash,"data":null}]);
+    genesis["context"]["consensus"]["median_time_block_count"] = json!("0xffffffff");
+    genesis["context"]["consensus"]["hardforks"]["rfc0049_epoch"] = json!("0x0");
+    genesis["context"]["consensus"]["hardforks"]["rfc0032_epoch"] = json!("0x0");
+    genesis["transaction"]["inputs"][0]["since"] = json!("0x4000000000000000");
+    cases.push(("large-median-count-at-genesis", genesis, true));
     cases
 }

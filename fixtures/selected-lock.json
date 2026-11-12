@@ -63,40 +63,61 @@
           }
         }
       ],
+      "consensus": {
+        "cellbase_maturity": "0x10000000004",
+        "dao_type_hash": "0x82d76d1b75fe2fd9a27dfbaa65a039221a380d76c926f378d3f81cf3e7e13f2e",
+        "hardforks": {
+          "rfc0028_epoch": "0x1526",
+          "rfc0032_epoch": "0x1526",
+          "rfc0044_epoch": "0x21cb",
+          "rfc0049_epoch": "0x3005"
+        },
+        "max_block_bytes": "0x91c08",
+        "max_block_cycles": "0xd09dc300",
+        "median_time_block_count": "0x25",
+        "starting_block_limiting_dao_withdrawing_lock": "0x989680",
+        "tx_proposal_window": {
+          "closest": "0x2",
+          "farthest": "0xa"
+        },
+        "tx_version": "0x0"
+      },
       "extensions": [
         {
           "block_hash": "0x431643f20c2ddc95980bb2797c2a020d78cc05c849b70ab1a041c7e2768ec106",
           "data": null
         }
       ],
-      "headers": [
-        {
-          "compact_target": "0x20800000",
-          "dao": "0x0000000000000000000000000000000000000000000000000000000000000000",
-          "epoch": "0x3e80000004e20",
-          "extra_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-          "nonce": "0x0",
-          "number": "0x64",
-          "parent_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-          "proposals_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-          "timestamp": "0x0",
-          "transactions_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
-          "version": "0x0"
-        }
-      ],
-      "network": "mainnet",
+      "headers": [],
       "tip_header": {
         "compact_target": "0x20800000",
         "dao": "0x0000000000000000000000000000000000000000000000000000000000000000",
-        "epoch": "0x3e80001004e20",
+        "epoch": "0x3e80000004e20",
         "extra_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "nonce": "0x0",
-        "number": "0x65",
-        "parent_hash": "0x431643f20c2ddc95980bb2797c2a020d78cc05c849b70ab1a041c7e2768ec106",
+        "number": "0x64",
+        "parent_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "proposals_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "timestamp": "0x0",
         "transactions_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "version": "0x0"
+      },
+      "verification": {
+        "candidate_header": {
+          "compact_target": "0x20800000",
+          "dao": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "epoch": "0x3e80001004e20",
+          "extra_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "nonce": "0x0",
+          "number": "0x65",
+          "parent_hash": "0x431643f20c2ddc95980bb2797c2a020d78cc05c849b70ab1a041c7e2768ec106",
+          "proposals_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "timestamp": "0x0",
+          "transactions_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "version": "0x0"
+        },
+        "phase": "committed",
+        "transaction_index": "0x2"
       }
     },
     "max_cycles": "0x989680",

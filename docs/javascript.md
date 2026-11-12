@@ -34,7 +34,7 @@ The GitHub CI artifact contains a ready-to-install `.tgz`. No npm registry
 release is claimed. After downloading and extracting the CI artifact:
 
 ```sh
-npm install ./hanssen0-alter-ego-ckb-wasm-verifier-0.1.0.tgz
+npm install ./hanssen0-alter-ego-ckb-wasm-verifier-0.2.0.tgz
 ```
 
 ```js
@@ -93,20 +93,75 @@ to restart.
 
 ## Snapshot contract and errors
 
-`context.headers`, `context.extensions`, and every cell's `transaction_info` are
-required, even when an array is empty. Supply creation headers for the resolved
-cells, candidate parent and any header/median-time/DAO dependencies needed by the
-transaction. Supply an explicit extension entry with hex data or `null` for each
-resolved input/dependency creation block and header dependency. Omission does not
-mean “no extension.” `tip_header` is the candidate committed block, not merely the
-latest observed chain tip.
+Supply `context.consensus` explicitly. The foundational API has no `network`
+selector, bundled network presets, or network-maintenance wrapper. The caller owns
+consensus configuration and snapshot freshness. Consensus fields are:
 
-A successful result is relative to the caller's snapshot. It has
-`chain_state_verified: false`: it does not prove cells are live, header chain
-canonicality, chain authenticity, or network acceptance. Cellbase transactions
-are unsupported. Use the network's correct context and a cycle budget within its
-block limit. Untrusted requests can consume substantial CPU and memory; bound
-request size and use a Worker you can terminate for application-level timeouts.
+- `tx_version`, `max_block_bytes`, `max_block_cycles`, `cellbase_maturity`, and
+  `median_time_block_count`.
+- `tx_proposal_window: { closest, farthest }` and `dao_type_hash`.
+- `hardforks: { rfc0028_epoch, rfc0032_epoch, rfc0049_epoch, rfc0044_epoch }`.
+- `starting_block_limiting_dao_withdrawing_lock`.
+
+Use RPC hex strings for all these values, including activation epochs and limits.
+`dao_type_hash` is a 32-byte hash. A cycle budget must be within the supplied
+`max_block_cycles`. Pass all fields; the verifier does not infer a network.
+
+`context.tip_header` is the **actual current chain tip**. Verification defaults to
+submitted mode when `context.verification` is omitted. You can select it explicitly:
+
+```js
+const submitted = await verifier.verify({
+  ...request,
+  context: { ...request.context, verification: { phase: 'submitted' } },
+});
+```
+
+For checking inclusion in a specific candidate block, supply committed mode:
+
+```js
+const committed = await verifier.verify({
+  ...request,
+  context: {
+    ...request.context,
+    verification: {
+      phase: 'committed',
+      candidate_header: candidateHeader,
+      transaction_index: '0x1',
+    },
+  },
+});
+```
+
+The candidate must be a direct child of `tip_header`. `transaction_index` must be
+positive: position zero is reserved for cellbase. For known same-block inputs, prefer
+their actual candidate-block origin and earlier transaction index. This lets the
+verifier check ordering within the candidate block.
+The existing `valid.json` fixture uses explicit committed mode; `submitted-valid`
+exercises the omitted/default mode.
+
+`context.headers`, `context.extensions`, and every cell's `transaction_info` are
+required, even when an array is empty. `transaction_info` may be an origin object
+with `block_hash`, `block_number`, `block_epoch`, and `index`, or explicit `null`.
+Null is a caller assertion that the cell is non-cellbase with an unknown or
+unconfirmed origin. It is accepted in both submitted and committed modes, but
+does not prove that its producing transaction is valid or establish its position
+within a candidate block. Relative-since checks need a known origin and remain
+immature without one. Do not omit the field. Prefer real origin metadata for
+committed verification, especially for known same-block inputs; the caller remains
+responsible for block-wide validity and ordering that null metadata cannot prove.
+
+Supply the creation headers for confirmed resolved cells and any
+header/median-time/DAO dependencies needed by the transaction. Supply an explicit
+extension entry with hex data or `null` for each required creation block and
+header dependency. Omission does not mean “no extension.”
+
+A successful result is relative to the caller's snapshot and supplied consensus.
+It has `chain_state_verified: false`: it does not prove cells are live, header
+chain canonicality, chain authenticity, or network acceptance. Cellbase
+transactions are unsupported. Untrusted requests can consume substantial CPU and
+memory; bound request size and use a Worker you can terminate for application-level
+timeouts.
 
 Verification rejection returns `{ ok: false, error: { code, message } }`.
 Initialization failures, WASM traps, malformed JS/JSON, and Worker transport
@@ -122,3 +177,11 @@ failures reject the returned Promise. Handle both outcomes.
   Every expected top-level response field is compared deeply. Set
   `CKB_WASM_FIXTURE` to run one fixture file instead. Missing real WASM fails the
   suite; an empty fixture directory is reported as a skipped fixture test.
+
+- `npm run test:browser`: real dedicated Worker verification, with isolation off,
+  SharedArrayBuffer absent, and browser networking disabled after initialization.
+  Covers default submitted, unconfirmed input, same-block input, explicit
+  committed, selected-lock, and rejecting script fixtures. Requires built WASM
+  and a supported Playwright browser runtime.
+- `npm run test:differential`: compare every fixture's actual native CLI and WASM
+  output, normalizing script-group order. Requires both built artifacts.

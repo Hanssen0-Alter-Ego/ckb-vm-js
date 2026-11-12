@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
-const cases = await Promise.all(['valid', 'selected-lock', 'script-failure'].map(async (name) => ({
+const cases = await Promise.all(['submitted-valid', 'unconfirmed-input', 'same-block-input', 'valid', 'selected-lock', 'script-failure'].map(async (name) => ({
   name,
   ...JSON.parse(await readFile(new URL(`../../fixtures/${name}.json`, import.meta.url), 'utf8')),
 })));

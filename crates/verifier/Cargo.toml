@@ -1,6 +1,6 @@
 [package]
 name = "ckb-wasm-verifier"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"
@@ -16,7 +16,6 @@ ckb-traits = { path = "../../vendor/ckb/traits" }
 ckb-script = { path = "../../vendor/ckb/script", default-features = false }
 ckb-verification = { path = "../../vendor/ckb/verification" }
 ckb-chain-spec = { path = "../../vendor/ckb/spec" }
-ckb-resource = { path = "../../vendor/ckb/resource" }
 ckb-dao-utils = { path = "../../vendor/ckb/util/dao/utils" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -25,3 +24,6 @@ hex = "0.4"
 [target.'cfg(target_family = "wasm")'.dependencies]
 wasm-bindgen = "=0.2.105"
 getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+ckb-resource = { path = "../../vendor/ckb/resource" }

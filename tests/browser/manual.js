@@ -16,7 +16,7 @@ button.addEventListener('click', async () => {
   let verifier;
   try {
     if (crossOriginIsolated || typeof SharedArrayBuffer !== 'undefined') throw new Error('Test requires non-isolated page with SharedArrayBuffer absent');
-    const names = ['valid', 'selected-lock', 'script-failure'];
+    const names = ['submitted-valid', 'unconfirmed-input', 'same-block-input', 'valid', 'selected-lock', 'script-failure'];
     const fixtures = await Promise.all(names.map(async name => {
       const response = await fetch(`../../fixtures/${name}.json`);
       if (!response.ok) throw new Error(`Fixture ${name}: HTTP ${response.status}`);
@@ -35,7 +35,7 @@ button.addEventListener('click', async () => {
       }
       output.textContent += `PASS ${name}: ${JSON.stringify(result)}\n`;
     }
-    output.textContent += 'PASS: 3 real Worker fixtures; no SharedArrayBuffer or cross-origin isolation.\n';
+    output.textContent += 'PASS: 6 real Worker fixtures; no SharedArrayBuffer or cross-origin isolation.\n';
     output.textContent += 'This manual page does not disable browser networking; use Playwright for the offline-network assertion.\n';
   } catch (error) {
     output.textContent += `FAIL: ${error.name}: ${error.message}\n`;

@@ -2,19 +2,19 @@
 
 Offline CKB transaction verification in WebAssembly, with a JavaScript/TypeScript API.
 
-This project uses **CKB's own transaction verifiers and CKB-VM**, pinned as Git submodules. It does not substitute a JavaScript VM or approximate CKB consensus. Both the ordinary full-transaction API and a selected-script-group API are available.
+This project uses **CKB's own transaction verifiers and CKB-VM**, pinned as Git submodules. It does not substitute a JavaScript VM. The caller supplies the consensus parameters consumed by the pinned transaction-verification paths. Both the ordinary full-transaction API and a selected-script-group API are available.
 
 **Early experimental release. Not audited. A successful result is relative to the supplied snapshot, not proof that the network will accept the transaction.** Do not use it as the sole safeguard for funds.
 
 ## What `verify` checks
 
-For a non-cellbase transaction at an explicitly supplied candidate block:
+For a non-cellbase transaction, using only caller-supplied transaction context:
 
 - Canonical RPC decoding, transaction version/size/shape, output-data lengths, supported script hash types and duplicate dependencies.
 - Input resolution, duplicate inputs and dep-group expansion against caller-supplied cells.
 - Cellbase maturity, `since`, occupied capacity, input/output capacity and DAO-aware fees.
 - Every lock/type script group, TYPE_ID rules, syscall behavior, hardfork-selected VM versions, and a shared cycle budget through upstream CKB.
-- The upstream DAO script-size rule at its configured activation epoch.
+- The upstream DAO script-size rule, with submission/block-mode activation semantics.
 
 `verifyScriptGroup` executes only the requested lock/type group. A successful group result **does not imply that the whole transaction is valid**. Structural decoding and snapshot completeness checks still apply.
 
@@ -29,7 +29,9 @@ Deliberately outside scope:
 - Transaction proposal inclusion, block-wide byte/cycle limits, conflicts with other block transactions, and cellbase rewards.
 - Mempool policy or future inclusion guarantees.
 
-Initial API restrictions are explicit and fail closed: mainnet/testnet bundled consensus only; committed candidate-block mode; no cellbase transaction; no same-block ancestor inputs/dependencies. Candidate header and its parent are required. A future API may add submission/proposal environments and custom chain specifications.
+The foundation API has no network selector, chain-state cache, RPC client or automatic mainnet/testnet configuration. The caller supplies the required consensus parameters as well as the data. Network presets and context-maintenance helpers can be built separately on top.
+
+`tip_header` means the **actual current chain tip**. By default, verification uses upstream's newly-submitted transaction environment. To check an exact hypothetical block placement, supply `verification: { phase: 'committed', candidate_header, transaction_index }`; the candidate must directly follow the supplied tip. Same-block ancestor cells are supported when their creation metadata identifies this candidate and an earlier transaction index. Explicit `transaction_info: null` represents an unconfirmed non-cellbase cell, not missing metadata. Standalone cellbase transactions and the separate already-proposed pool phase are not supported. See the [complete request contract](crates/verifier/SCHEMA.md).
 
 ## Build
 
@@ -70,7 +72,7 @@ const oneGroup = await verifier.verifyScriptGroup(request, {
 
 For fully offline initialization in Node, pass `wasm: await readFile(...)`. For browsers, use `createWorkerVerifier` to keep CPU-bound verification off the UI thread. The returned Promise does not by itself make direct verification non-blocking. See [JavaScript and Worker usage](docs/javascript.md).
 
-A [complete CI run](https://github.com/Hanssen0-Alter-Ego/ckb-wasm-verifier/actions/runs/43139332773) verifies the real browser Worker offline, without SharedArrayBuffer, and compares 33 fixtures against unmodified native upstream. This is conformance evidence for those cases, not a production audit.
+The v0.2 foundation interface has 62 synthetic transaction/context fixtures, all passing locally in native and real WASM execution, including comparison with an unmodified-upstream native build. JavaScript/TypeScript and offline installed-tarball checks also pass. Browser execution is checked by the [CI workflow](https://github.com/Hanssen0-Alter-Ego/ckb-wasm-verifier/actions); inspect the check for the exact commit rather than assuming a previous browser pass covers this revision. See the [verification record and limits](docs/verification.md).
 
 ## Request
 
@@ -81,9 +83,20 @@ const request = {
   transaction: { /* CKB RPC Transaction, including witnesses */ },
   max_cycles: '0x3b9aca00',
   context: {
-    network: 'mainnet', // or 'testnet'
-    tip_header: { /* candidate block RPC Header */ },
-    headers: [ /* parent, creation/header-dep/median-time headers */ ],
+    tip_header: { /* current chain tip RPC Header */ },
+    // verification omitted: defaults to { phase: 'submitted' }
+    consensus: {
+      tx_version: '0x...', max_block_bytes: '0x...', max_block_cycles: '0x...',
+      cellbase_maturity: '0x...', median_time_block_count: '0x...',
+      tx_proposal_window: { closest: '0x...', farthest: '0x...' },
+      dao_type_hash: '0x...',
+      hardforks: {
+        rfc0028_epoch: '0x...', rfc0032_epoch: '0x...',
+        rfc0049_epoch: '0x...', rfc0044_epoch: '0x...',
+      },
+      starting_block_limiting_dao_withdrawing_lock: '0x...',
+    },
+    headers: [ /* creation/header-dep/median-time headers */ ],
     cells: [{
       out_point: { tx_hash: '0x...', index: '0x0' },
       output: { capacity: '0x...', lock: { /* Script */ }, type: null },
@@ -98,9 +111,13 @@ const request = {
 };
 ```
 
-Cells must include every input, direct dep, dep-group cell and expanded member, with creation headers. `transaction_info.index` is the transaction's index in its creation block, not the cell's output index; zero means cellbase. Its block number and packed epoch must match the supplied creation header. Every referenced creation/header-dep hash must have an explicit extension entry: bytes when present, `null` when absent. Missing context is an error, never treated as successful verification.
+The snippet is a shape illustration, not a usable network configuration. Cells must include every input, direct dep, dep-group cell and expanded member. Confirmed origins require their creation headers. `transaction_info.index` is the transaction's index in its creation block, not the cell's output index; zero means cellbase. Its block number and packed epoch must match the supplied creation header. For resolved inputs/dependencies with known origins and declared header deps, each corresponding hash must have an explicit extension entry: bytes when present, `null` when absent. Missing context is an error, never treated as successful verification.
 
-Timestamp-based `since` may require the network's median-time ancestor window. Supply the linked header chain, stopping at genesis. Header JSON is the RPC Header body; the block hash is recomputed, not trusted from a separate asserted hash.
+Timestamp-based `since` may require the caller-configured median-time ancestor window. Supply the linked header chain, stopping at genesis. Header JSON is the RPC Header body; the block hash is recomputed, not trusted from a separate asserted hash.
+
+### Migration from v0.1
+
+The old `context.network` is removed. Supply `context.consensus` explicitly; do not assume a preset is selected implicitly. The old misleading `tip_header` was a candidate header. To retain exact-block semantics, move it to `context.verification.candidate_header`, set `phase: 'committed'`, provide the target `transaction_index`, and put its actual parent in `context.tip_header`. Do not repeat that parent in `headers`. Omitting `verification` intentionally selects **submitted**, not the old committed behavior. JS method names are unchanged.
 
 Success returns `{ ok: true, scope: 'transaction' | 'script_group', cycles, fee?, groups, chain_state_verified: false }`. Failure returns `{ ok: false, error: { code, message } }`. Group order is not part of the API. Error messages include upstream details and may change with upstream versions.
 

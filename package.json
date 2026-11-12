@@ -1,6 +1,6 @@
 {
   "name": "@hanssen0-alter-ego/ckb-wasm-verifier",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Offline CKB transaction and script-group verification in WebAssembly",
   "type": "module",
   "license": "MIT",

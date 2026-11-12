@@ -8,7 +8,8 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const directory = await mkdtemp(path.join(tmpdir(), 'ckb-package-'));
 try {
   await writeFile(path.join(directory, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
-  const tarball = path.join(root, 'hanssen0-alter-ego-ckb-wasm-verifier-0.1.0.tgz');
+  const { version } = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+  const tarball = path.join(root, `hanssen0-alter-ego-ckb-wasm-verifier-${version}.tgz`);
   execFileSync('npm', ['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--cache', path.join(directory, 'cache'), tarball], { cwd: directory, stdio: 'inherit' });
   const { request } = JSON.parse(await readFile(new URL('../fixtures/valid.json', import.meta.url), 'utf8'));
   await writeFile(path.join(directory, 'request.json'), JSON.stringify(request));

@@ -30,6 +30,34 @@ cargo run -p ckb-wasm-verifier --example generate-fixtures -- fixtures
 
 The baseline fixtures exercise full lock execution, lock plus type execution, selected lock/type groups, dep-group expansion, cycle exhaustion, nonzero script exit, malformed ELF, version/shape/capacity rejection, duplicate inputs/dependencies, maturity/since, incomplete context and inconsistent metadata. Adversarial host-width cases are described beside the compatibility patches.
 
+## Foundation-interface coverage and audit scope
+
+The caller supplies all context and transaction-relevant consensus parameters. The core does not select mainnet/testnet, fetch headers/cells, maintain a chain database, or infer that a supplied cell is live. Submitted mode uses the actual current tip; committed mode uses a separate candidate header and target transaction index. These modes deliberately follow different upstream environment semantics, including median-time starting point and DAO lock-size gating.
+
+The consensus-field audit follows noncontextual/contextual transaction verification, script VM selection, and DAO transaction-fee calculation. It does not turn this wrapper into a full block verifier, and it is not a proof that the pinned upstream can replay all historical rules with arbitrary hardfork parameters. Network wrappers can be added separately without changing this trust boundary.
+
+Audit references at the pinned CKB commit:
+
+- [Transaction checks](https://github.com/nervosnetwork/ckb/blob/6abb474c1678e67dae0337abeb8bfd77cfb576e3/verification/src/transaction_verifier.rs) and [verification environments](https://github.com/nervosnetwork/ckb/blob/6abb474c1678e67dae0337abeb8bfd77cfb576e3/script/src/verify_env.rs).
+- [DAO transaction-fee/withdrawal paths](https://github.com/nervosnetwork/ckb/blob/6abb474c1678e67dae0337abeb8bfd77cfb576e3/util/dao/src/lib.rs), distinct from block reward calculation.
+- [Pool DAO size checks](https://github.com/nervosnetwork/ckb/blob/6abb474c1678e67dae0337abeb8bfd77cfb576e3/tx-pool/src/util.rs) versus [committed-block activation](https://github.com/nervosnetwork/ckb/blob/6abb474c1678e67dae0337abeb8bfd77cfb576e3/verification/contextual/src/contextual_block_verifier.rs).
+- [Same-block cell metadata and ordering](https://github.com/nervosnetwork/ckb/blob/6abb474c1678e67dae0337abeb8bfd77cfb576e3/util/types/src/core/cell.rs).
+
+
+The v0.2 corpus contains **62 fixtures**. New coverage includes default and explicit submitted mode; submitted versus committed earliest-height `since`; same-block ordering and zero/positive relative since; explicit unconfirmed inputs and header/extension syscall results; omitted origins; custom transaction version, byte limit, maturity and VM activation; tip/candidate mismatch; height overflow; and invalid median configuration. A large configured median window reaching genesis checks that allocation follows actual ancestry, rather than eagerly reserving the whole caller-supplied count.
+
+Four custom-chain fixtures isolate the DAO size gate: submitted mode before block activation, committed mode before/at activation, and the origin-height threshold. These use a tiny success program as a stand-in for the DAO type script and **are not full Nervos DAO withdrawal tests**.
+
+## v0.2 local execution record (2026-11-12)
+
+- Rust 1.95.0 formatting, Clippy with warnings denied, and 4 tests passed; one test executes all 62 fixture mutations.
+- 63 real-WASM tests passed (62 fixtures plus initialization/error boundary).
+- Both 62-case native/WASM differential runs passed: patched native and separately built unmodified upstream submodules. The wrapper is shared, so this is platform parity, not an independent full-node consensus proof.
+- 11 JavaScript unit/protocol tests and TypeScript checks passed.
+- The built 0.2.0 tarball was installed offline into a fresh consumer directory and verified a real transaction.
+- Real browser execution remains a CI check: this local environment cannot launch Chromium because a required socket operation is unavailable. No local real-browser pass is claimed. The Worker test now covers submitted, unconfirmed and same-block inputs, in addition to the original valid/selected/failure cases. Inspect the workflow associated with the exact source commit.
+
+
 ## Limits
 
 - The corpus is synthetic and small. It is not a replay of historical mainnet blocks or a comprehensive upstream conformance suite.
@@ -39,7 +67,7 @@ The baseline fixtures exercise full lock execution, lock plus type execution, se
 - The API trusts the developer's external context. It cannot authenticate headers, cell data, extensions, spent status, ancestry or proposal inclusion.
 - Browser execution should use the Worker interface. Workers may be terminated by the caller; the direct synchronous WASM call has no cooperative cancellation API.
 
-## Local execution record (2026-11-12)
+## Historical v0.1 local execution record (2026-11-12)
 
 - Rust 1.95.0 native check, formatting, tests and Clippy were run.
 - 33 transaction fixtures run through the real WASM engine, plus an initialization/invalid-request check.
@@ -48,12 +76,12 @@ The baseline fixtures exercise full lock execution, lock plus type execution, se
 - WASM release generated with wasm-bindgen 0.2.105 and WASI SDK 34 clang (only as C compiler, still targeting bare wasm32-unknown-unknown).
 - The local environment could not launch Chromium because a required local socket operation was unavailable. Managed-browser access also could not reach the isolated local server. No local real-browser pass is claimed; the committed CI workflow runs the real offline Worker test in Chromium. Check the exact commit's workflow result.
 
-## CI browser evidence
+## Historical v0.1 CI browser evidence
 
 The complete workflow passed at engine commit `184af5d80ce8a2798d432c821b475ef03b3f6bc6`:
 https://github.com/Hanssen0-Alter-Ego/ckb-wasm-verifier/actions/runs/43139332773
 
-This includes Chromium running a real dedicated Worker with `crossOriginIsolated === false` and no SharedArrayBuffer. After module initialization from localhost, browser networking is disabled before full transaction, selected group and failure fixtures are verified. It also includes native/WASM parity against the separately built **unmodified upstream** native engine. Later documentation/package-only commits do not replace this exact-commit evidence; inspect their checks separately.
+This includes Chromium running a real dedicated Worker with `crossOriginIsolated === false` and no SharedArrayBuffer. After module initialization from localhost, browser networking is disabled before full transaction, selected group and failure fixtures are verified. It also includes native/WASM parity against the separately built **unmodified upstream** native engine. This evidence belongs to that exact earlier commit. In particular, it does not establish that the later foundation-interface refactor passed; inspect the current commit’s checks separately.
 
 ## Distribution notices
 
