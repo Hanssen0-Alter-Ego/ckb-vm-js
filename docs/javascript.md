@@ -28,6 +28,24 @@ binding location.
 All CKB integer request and response fields use RPC hex strings, never JavaScript
 `number` or `bigint`. Script-group input/output indices are ordinary numbers.
 
+## Install a built tarball
+
+The GitHub CI artifact contains a ready-to-install `.tgz`. No npm registry
+release is claimed. After downloading and extracting the CI artifact:
+
+```sh
+npm install ./hanssen0-alter-ego-ckb-wasm-verifier-0.1.0.tgz
+```
+
+```js
+import { readFile } from 'node:fs/promises';
+import { createVerifier } from '@hanssen0-alter-ego/ckb-wasm-verifier';
+const wasm = await readFile(new URL(import.meta.resolve(
+  '@hanssen0-alter-ego/ckb-wasm-verifier/wasm',
+)));
+const verifier = await createVerifier({ wasm });
+```
+
 ## Verify a script group
 
 ```js

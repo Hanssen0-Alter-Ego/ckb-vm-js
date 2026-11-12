@@ -1,0 +1,4 @@
+{
+  "ckb-system-secp256k1.txt": "https://raw.githubusercontent.com/nervosnetwork/secp256k1/3ffde18a060aaf4df5b81e7d88355f1e99874650/COPYING",
+  "ckb-system-blake2b-header.txt": "https://raw.githubusercontent.com/nervosnetwork/ckb-system-scripts/v0.5.4/c/blake2b.h"
+}

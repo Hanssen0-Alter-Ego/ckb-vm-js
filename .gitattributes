@@ -1,0 +1,3 @@
+*.patch -whitespace
+THIRD_PARTY_NOTICES.md -whitespace
+scripts/licenses/** -whitespace

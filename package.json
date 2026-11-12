@@ -8,14 +8,18 @@
     "js",
     "pkg/*.js",
     "pkg/*.wasm",
-    "pkg/*.d.ts"
+    "pkg/*.d.ts",
+    "docs/*.md",
+    "crates/verifier/SCHEMA.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "exports": {
     ".": {
       "types": "./js/index.d.ts",
       "import": "./js/index.js"
     },
-    "./worker": "./js/worker.js"
+    "./worker": "./js/worker.js",
+    "./wasm": "./pkg/ckb_wasm_verifier_bg.wasm"
   },
   "scripts": {
     "test": "node --test tests/js/*.test.js",

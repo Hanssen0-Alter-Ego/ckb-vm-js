@@ -41,7 +41,9 @@ jobs:
           npx playwright install --with-deps chromium
           npm run test:browser
       - name: Package built artifact
-        run: npm pack
+        run: |
+          npm pack
+          node scripts/test-package.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: ckb-wasm-verifier-package

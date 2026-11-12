@@ -45,6 +45,7 @@ npm ci
 npm test
 npm run typecheck
 npm run test:wasm
+node examples/verify.mjs # runs the included valid fixture offline
 ```
 
 Rust 1.95.0 is pinned in `rust-toolchain.toml`. `clang` is needed for upstream secp256k1 C code; `CC_wasm32_unknown_unknown=/path/to/clang` overrides it. The generated module targets **wasm32-unknown-unknown**, not WASI, and does not require SharedArrayBuffer or cross-origin isolation.
@@ -68,6 +69,8 @@ const oneGroup = await verifier.verifyScriptGroup(request, {
 ```
 
 For fully offline initialization in Node, pass `wasm: await readFile(...)`. For browsers, use `createWorkerVerifier` to keep CPU-bound verification off the UI thread. The returned Promise does not by itself make direct verification non-blocking. See [JavaScript and Worker usage](docs/javascript.md).
+
+A [complete CI run](https://github.com/Hanssen0-Alter-Ego/ckb-wasm-verifier/actions/runs/43139332773) verifies the real browser Worker offline, without SharedArrayBuffer, and compares 33 fixtures against unmodified native upstream. This is conformance evidence for those cases, not a production audit.
 
 ## Request
 
@@ -109,3 +112,5 @@ Success returns `{ ok: true, scope: 'transaction' | 'script_group', cycles, fee?
 - `scripts/prepare.sh` applies the checked-in, narrowly scoped wasm32 compatibility patches to the exact upstream pins. These retain 64-bit syscall/ELF semantics on a 32-bit host. See `patches/README.md`; do not omit this step. Native builds may select upstream assembly execution; the browser uses the portable interpreter.
 
 See [verification notes](docs/verification.md) for actual checks run and remaining test gaps. This is an independent integration, not an official Nervos release. Upstream submodules retain their own licenses.
+
+Dependency attribution and unresolved upstream notice gaps are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Licensing review, like consensus coverage, is not claimed complete for this experimental package.
