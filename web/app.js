@@ -1,3 +1,4 @@
+import { createWorkbench } from './workbench.js';
 import { guidedRequest, ckb, ckbToHex, explain } from './guided.js';
 import { createWorkerVerifier } from './js/index.js';
 const $ = (id) => document.getElementById(id);
@@ -12,7 +13,7 @@ const lessons = {
   budget: ['submitted-valid', '999', '100', 'The same transfer, but only 100 computation cycles. Run it, then choose the normal budget to try again.'],
   reject: ['script-failure', '999', '10000000', 'The balance is valid, but this toy lock deliberately refuses to unlock the input. Run it to see why scripts matter.'],
 };
-function customMode() { guidedMode = false; $('guided').dataset.custom = 'true'; $('amount').disabled = true; $('budget').disabled = true; $('lesson').textContent = 'Custom request active. The controls above do not describe this request. Choose an experiment to reset to guided mode.'; document.querySelectorAll('[data-experiment]').forEach(b => b.setAttribute('aria-pressed', 'false')); }
+function customMode() { guidedMode = false; $('guided').dataset.custom = 'true'; $('amount').disabled = true; $('budget').disabled = true; $('lesson').textContent = 'Custom request active. The controls above do not describe this request. Use the transaction editor below, or choose an experiment to reset.'; document.querySelectorAll('[data-experiment]').forEach(b => b.setAttribute('aria-pressed', 'false')); }
 function updateGuided() {
   if (!guidedMode || !guidedBase) return;
   clearOutput(); status('Edited'); $('result').textContent = 'No verification has run for this input.';
@@ -20,6 +21,7 @@ function updateGuided() {
   try {
     const request = guidedRequest(guidedBase, $('amount').value, $('budget').value);
     $('request').value = JSON.stringify(request, null, 2);
+    workbench.refresh();
     const difference = 100000000000n - BigInt(ckbToHex($('amount').value));
     $('balance').textContent = difference >= 0n ? `Input 1,000 CKB → new cell ${ckb(request.transaction.outputs[0].capacity)} CKB · remaining ${ckb(difference)} CKB fee` : `The output asks for ${ckb(-difference)} CKB more than the input provides.`;
     $('summary').textContent = 'Experiment ready. The real engine will check it when you run.';
@@ -39,6 +41,18 @@ async function experiment(name) {
 document.querySelectorAll('[data-experiment]').forEach(b => b.addEventListener('click', () => experiment(b.dataset.experiment)));
 $('amount').addEventListener('input', updateGuided); $('budget').addEventListener('change', updateGuided);
 const size = (text) => new TextEncoder().encode(text).length;
+const workbench = createWorkbench($('workbench'), {
+  read: () => readRequest($('request').value),
+  write(request) { customMode(); $('request').value = JSON.stringify(request, null, 2); markEdited(); },
+  edited: markEdited,
+});
+function markEdited() {
+  clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
+  $('result').textContent = 'Previous output cleared because the input changed.';
+  $('explanation').textContent = 'No verification has run for this input.';
+  $('explanation').dataset.kind = '';
+}
+
 function status(label, kind = '') { $('status').textContent = label; $('status').dataset.kind = kind; }
 function clearOutput() { for (const id of ['scope', 'cycles', 'elapsed']) $(id).textContent = '—'; }
 function fail(error, stage = 'Input error') {
@@ -54,6 +68,7 @@ function readRequest(text) {
   return request;
 }
 function busy(value) {
+  workbench.setBusy(value);
   for (const id of ['run', 'load', 'sample', 'upload', 'request']) $(id).disabled = value;
   $('cancel').disabled = !value || loading;
   for (const control of document.querySelectorAll('[data-experiment], #amount, #budget')) control.disabled = value || (!guidedMode && !control.dataset.experiment);
@@ -73,7 +88,7 @@ async function loadSample(asGuided = false) {
     $('summary').textContent = 'Synthetic fixture loaded. Inspect the supplied consensus before running.';
     status('Ready');
   } catch (error) { fail(error, 'Sample error'); }
-  finally { loading = false; busy(false); }
+  finally { loading = false; workbench.refresh(); busy(false); }
 }
 $('load').addEventListener('click', () => loadSample());
 $('upload').addEventListener('change', async (event) => {
@@ -84,17 +99,19 @@ $('upload').addEventListener('change', async (event) => {
     const request = readRequest(await file.text());
     customMode(); $('advanced').open = true; $('explanation').textContent = 'Imported data has not been verified.';
     $('request').value = JSON.stringify(request, null, 2);
-    status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
+    workbench.refresh(); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
     $('result').textContent = 'No verification has run for this input.';
   } catch (error) { fail(error); }
   event.target.value = '';
 });
 $('request').addEventListener('input', () => {
+  workbench.refresh();
   customMode(); $('explanation').textContent = 'Input changed. The previous result no longer applies.';
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
   $('result').textContent = 'Previous output cleared because the input changed.';
 });
 $('download').addEventListener('click', () => {
+  if (!workbench.valid()) return;
   try {
     const content = JSON.stringify(guidedMode ? guidedRequest(guidedBase, $('amount').value, $('budget').value) : readRequest($('request').value), null, 2);
     const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
@@ -104,7 +121,7 @@ $('download').addEventListener('click', () => {
 });
 $('cancel').addEventListener('click', () => active?.stop('Cancelled'));
 $('run').addEventListener('click', async () => {
-  if (active || loading) return;
+  if (active || loading || !workbench.valid()) return;
   clearOutput();
   let request;
   try { request = guidedMode ? guidedRequest(guidedBase, $('amount').value, $('budget').value) : readRequest($('request').value); } catch (error) { fail(error); return; }
@@ -138,3 +155,4 @@ $('run').addEventListener('click', async () => {
   }
 });
 await experiment('normal');
+

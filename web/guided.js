@@ -1,5 +1,5 @@
 export function ckbToHex(value) {
-  if (!/^\d{1,11}(\.\d{1,8})?$/.test(value)) throw new Error('Enter a non-negative CKB amount with up to 8 decimal places.');
+  if (!/^\d{1,12}(\.\d{1,8})?$/.test(value)) throw new Error('Enter a non-negative CKB amount with up to 8 decimal places.');
   const [whole, fraction = ''] = value.split('.');
   const shannons = BigInt(whole) * 100000000n + BigInt(fraction.padEnd(8, '0'));
   if (shannons > 0xffffffffffffffffn) throw new Error('This amount is too large.');
@@ -30,3 +30,4 @@ export function explain(result) {
   if (/OccupiedCapacity|InsufficientCellCapacity/i.test(error)) return 'The new cell is too small to hold its data and scripts. Increase its capacity and run again.';
   return 'The engine rejected this snapshot. Open Technical details for its exact reason. A failure can come from a transaction rule, a script, or incomplete supplied context.';
 }
+
