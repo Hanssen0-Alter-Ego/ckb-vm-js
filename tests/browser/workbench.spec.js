@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 const ready=async page=>{await page.goto('/ckb-vm-js/');await expect(page.locator('#status')).toHaveText('Ready');};
 const edit=async(page,kind,i=1)=>page.getByRole('button',{name:`Edit ${kind} ${i}`,exact:true}).click();
-const done=async page=>page.getByRole('button',{name:'Done',exact:true}).click();
+const done=async page=>page.getByRole('button',{name:'Save',exact:true}).click();
 test('overview and inspector edits preserve unknown data, round trips and recovery',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await ready(page);
  await expect(page.getByLabel('Input 1 capacity (CKB)',{exact:true})).toHaveCount(0);
@@ -21,7 +21,7 @@ test('mobile overview fits within two screens, details retain invalid drafts and
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  expect(await page.locator('#run').evaluate(e=>e.getBoundingClientRect().bottom)).toBeLessThan(1688);
  await edit(page,'input');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:'Edit input 1',exact:true})).toBeFocused();
- await edit(page,'output');const field=page.getByLabel('Output 1 capacity (CKB)',{exact:true});await field.fill('oops');await field.press('Tab');await page.keyboard.press('Escape');await expect(page.locator('dialog')).toBeVisible();expect(await field.evaluate(e=>e.validity.valid)).toBe(false);await field.fill('999');await field.press('Tab');await done(page);
+ await edit(page,'output');const field=page.getByLabel('Output 1 capacity (CKB)',{exact:true});await field.fill('oops');await field.press('Tab');expect(await field.evaluate(e=>e.validity.valid)).toBe(false);await page.keyboard.press('Escape');await expect(page.locator('dialog')).not.toBeVisible();await edit(page,'output');const retry=page.getByLabel('Output 1 capacity (CKB)',{exact:true});await retry.fill('999');await retry.press('Tab');await done(page);
  await page.locator('#advanced summary').click();let r=JSON.parse(await page.locator('#request').inputValue());r.transaction.inputs=[null];await page.locator('#request').fill(JSON.stringify(r));await expect(page.locator('#workbench')).toContainText('Needs attention');expect(JSON.parse(await page.locator('#request').inputValue()).transaction.inputs).toEqual([null]);
 });
 test('numbered dependencies, settings and many-cell browse are reachable without data loss',async({page})=>{
@@ -46,7 +46,7 @@ test('reordering follows the selected cell and tools restore their own focus',as
 });
 
 test('malformed structure has an explicit invalid-draft escape back to JSON',async({page})=>{
- await ready(page);await page.locator('#advanced summary').click();let r=JSON.parse(await page.locator('#request').inputValue());r.transaction.outputs_data=null;await page.locator('#request').fill(JSON.stringify(r));await edit(page,'output');await page.getByLabel('Output 1 data (hex)',{exact:true}).fill('0xaa');await page.getByRole('button',{name:'Discard invalid draft',exact:true}).click();await expect(page.locator('dialog')).not.toBeVisible();expect(JSON.parse(await page.locator('#request').inputValue()).transaction.outputs_data).toBeNull();r.transaction.outputs_data=['0x'];await page.locator('#request').fill(JSON.stringify(r));await edit(page,'output');await page.getByLabel('Output 1 data (hex)',{exact:true}).fill('0xaa');await done(page);expect(JSON.parse(await page.locator('#request').inputValue()).transaction.outputs_data).toEqual(['0xaa']);
+ await ready(page);await page.locator('#advanced summary').click();let r=JSON.parse(await page.locator('#request').inputValue());r.transaction.outputs_data=null;await page.locator('#request').fill(JSON.stringify(r));await edit(page,'output');await page.getByLabel('Output 1 data (hex)',{exact:true}).fill('0xaa');await page.getByRole('button',{name:'Cancel changes',exact:true}).click();await expect(page.locator('dialog')).not.toBeVisible();expect(JSON.parse(await page.locator('#request').inputValue()).transaction.outputs_data).toBeNull();r.transaction.outputs_data=['0x'];await page.locator('#request').fill(JSON.stringify(r));await edit(page,'output');await page.getByLabel('Output 1 data (hex)',{exact:true}).fill('0xaa');await done(page);expect(JSON.parse(await page.locator('#request').inputValue()).transaction.outputs_data).toEqual(['0xaa']);
 });
 
 test('context fields, decimal uint64 cycles and independent witness/header dots round trip',async({page})=>{
@@ -77,4 +77,33 @@ test('large JSON numbers survive structured edits, export and verification witho
  const after=await input.inputValue();expect(after).toContain('"unknown_large": 9007199254740993');expect(after).toContain('"unknown_decimal": 0.1234567890123456789');expect(after).toContain('"unknown_text": "9007199254740993"');
  await page.locator('.example-menu summary').click();const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON'}).click();const download=await pending;const stream=await download.createReadStream();let exported='';for await (const chunk of stream)exported+=chunk.toString();expect(exported).toContain('"unknown_large": 9007199254740993');
  await page.getByRole('button',{name:'Run verification'}).click();await expect(page.locator('#status')).toHaveText(/^(Passed snapshot|Rejected)$/);await expect(input).toHaveValue(after);
+});
+
+test('cancel restores an editor session including new deps and exact unknown numbers',async({page})=>{
+ await ready(page);await page.locator('#advanced summary').click();const input=page.locator('#request');const base=(await input.inputValue()).replace(/^\s*\{/, '{"exact":9007199254740993,');await input.fill(base);
+ await edit(page,'output');await page.getByLabel('Output 1 capacity (CKB)',{exact:true}).fill('61');await page.getByRole('button',{name:'Cancel changes',exact:true}).click();expect(await input.inputValue()).toBe(base);
+ await page.getByRole('button',{name:'Manage cell deps'}).click();await page.getByRole('button',{name:'New resolved cell'}).click();await page.getByLabel('Cell dep 2 capacity (CKB)',{exact:true}).fill('invalid');await page.getByRole('button',{name:'Cancel changes',exact:true}).click();expect(await input.inputValue()).toBe(base);
+ await edit(page,'output');await page.getByLabel('Output 1 capacity (CKB)',{exact:true}).fill('62');await page.keyboard.press('Escape');expect(await input.inputValue()).toBe(base);
+});
+
+test('loading an example asks before replacing edits and honors both answers',async({page})=>{
+ await ready(page);await page.locator('#advanced summary').click();const input=page.locator('#request');const before=(await input.inputValue()).replace(/^\s*\{/, '{"keep":9007199254740993,');await input.fill(before);await page.locator('.example-menu summary').click();await page.locator('#sample').selectOption('valid');
+ page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('button',{name:'Load sample'}).click();expect(await input.inputValue()).toBe(before);
+ page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Load sample'}).click();await expect(page.locator('#status')).toHaveText('Ready');expect(await input.inputValue()).not.toBe(before);
+});
+
+test('mobile long capacity remains whole and overview labels reflect actual indices and kinds',async({page})=>{
+ await page.setViewportSize({width:400,height:583});await ready(page);await page.locator('#advanced summary').click();const input=page.locator('#request');const r=JSON.parse(await input.inputValue());r.transaction.outputs[0].capacity='0xffffffffffffffff';r.transaction.witnesses=['0x'];await input.fill(JSON.stringify(r));await page.locator('#advanced summary').click();
+ const amount=page.locator('.capacity-long').first();await expect(amount).toHaveText('184467440737.09551615 CKB');expect(await amount.evaluate(e=>e.scrollWidth<=e.clientWidth)).toBe(true);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await expect(page.getByRole('button',{name:'Witness 0 · open details'})).toHaveText('0');await expect(page.getByRole('button',{name:/Cell dep 1 · code/})).toContainText('code');await edit(page,'output');await page.getByText('Output 1 type · none').click();await expect(page.getByRole('button',{name:'Add Output 1 type',exact:true})).toBeVisible();
+});
+
+test('visible build link identifies the build commit',async({page})=>{
+ await ready(page);const build=page.locator('#build-version');
+ if(process.env.GITHUB_SHA){await expect(build).toHaveText(/^Build [0-9a-f]{10}$/);await expect(build).toHaveAttribute('href',`https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/commit/${process.env.GITHUB_SHA}`);}else await expect(build).toBeHidden();
+});
+
+test('import asks before replacing edited JSON',async({page})=>{
+ await ready(page);await page.locator('#advanced summary').click();const input=page.locator('#request');const before=(await input.inputValue()).replace(/^\s*\{/, '{"keep":9007199254740993,');await input.fill(before);
+ page.once('dialog',dialog=>dialog.dismiss());await page.locator('#upload').setInputFiles({name:'transaction.json',mimeType:'application/json',buffer:Buffer.from('{"transaction":{},"context":{"cells":[]}}')});expect(await input.inputValue()).toBe(before);
 });

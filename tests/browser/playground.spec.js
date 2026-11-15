@@ -33,6 +33,7 @@ test('project Pages path loads real WASM and supports repeat, rejection and reco
   await page.getByRole('button', { name: 'Run verification' }).click();
   await expect(page.locator('#status')).toHaveText('Input error');
   await page.locator('#sample').selectOption('valid');
+  page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Load sample' }).click();
   await expect(page.locator('#status')).toHaveText('Ready');
   await page.getByRole('button', { name: 'Run verification' }).click();

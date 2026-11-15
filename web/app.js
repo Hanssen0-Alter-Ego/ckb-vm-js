@@ -6,13 +6,17 @@ const $ = (id) => document.getElementById(id);
 const limit = 2 * 1024 * 1024;
 let active;
 let loading = false;
+let dirty = false;
 const size = (text) => new TextEncoder().encode(text).length;
 const workbench = createWorkbench($('workbench'), {
   read: () => readRequest($('request').value),
   write(request) { $('request').value = stringifyLossless(request); markEdited(); },
   edited: markEdited,
+  snapshot: () => ({ text: $('request').value, dirty }),
+  restore(saved) { $('request').value = saved.text; markEdited(); dirty = saved.dirty; },
 });
 function markEdited() {
+  dirty = true;
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
   $('result').textContent = 'Previous output cleared because the input changed.';
   $('explanation').textContent = 'No verification has run for this input.';
@@ -39,8 +43,9 @@ function busy(value) {
   $('cancel').disabled = !value || loading;
   $('cancel').hidden = !value || loading;
 }
-async function loadSample() {
+async function loadSample(initial = false) {
   if (active || loading) return;
+  if (!initial && dirty && !confirm('Replace your edited transaction with this example? Export JSON first if you want to keep it.')) return;
   loading = true; busy(true); clearOutput(); status('Loading sample');
   try {
     const response = await fetch(new URL(`./fixtures/${$('sample').value}.json`, import.meta.url));
@@ -51,25 +56,27 @@ async function loadSample() {
     $('explanation').textContent = 'No verification has run for this input.';
     $('result').textContent = 'No verification has run for this input.';
     $('summary').textContent = 'Synthetic fixture loaded. Inspect the supplied consensus before running.';
-    status('Ready');
+    dirty = false; status('Ready');
   } catch (error) { fail(error, 'Sample error'); }
   finally { loading = false; workbench.refresh(true); busy(false); }
 }
 $('load').addEventListener('click', () => loadSample());
 $('upload').addEventListener('change', async (event) => {
   const file = event.target.files[0]; if (!file || active) return;
+  if (dirty && !confirm('Replace your edited transaction with this file? Export JSON first if you want to keep it.')) { event.target.value = ''; return; }
   clearOutput();
   try {
     if (file.size > limit) throw new Error('File exceeds the 2 MiB limit.');
     const request = readRequest(await file.text());
     $('advanced').open = false; $('explanation').textContent = 'Imported data has not been verified.';
     $('request').value = stringifyLossless(request);
-    workbench.refresh(true); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
+    workbench.refresh(true); dirty = false; status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
     $('result').textContent = 'No verification has run for this input.';
   } catch (error) { fail(error); }
   event.target.value = '';
 });
 $('request').addEventListener('input', () => {
+  dirty = true;
   workbench.refresh(true);
   $('explanation').textContent = 'Input changed. The previous result no longer applies.';
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
@@ -112,7 +119,7 @@ $('run').addEventListener('click', async () => {
     status(result.ok ? 'Passed snapshot' : 'Rejected', result.ok ? '' : 'error');
     $('summary').textContent = result.ok
       ? (result.scope === 'script_group' ? 'Selected script group passed. Other groups and full transaction validity are not asserted.' : 'Transaction passed against the supplied snapshot and consensus. Chain state remains unverified.')
-      : 'Snapshot rejected. See the explanation below; the exact engine response is in Technical details.';
+      : 'Snapshot rejected. See the explanation below; the exact engine response is in Full engine response.';
   } catch (error) { fail(error, error.message === 'Cancelled' ? 'Cancelled' : 'Execution error'); }
   finally {
     clearTimeout(timeout); verifier?.dispose(); worker.terminate();
@@ -120,5 +127,6 @@ $('run').addEventListener('click', async () => {
     active = undefined; busy(false);
   }
 });
-await loadSample();
+fetch(new URL('./version.json', import.meta.url)).then(r => r.ok ? r.json() : null).then(v => { if (/^[0-9a-f]{40}$/.test(v?.commit ?? '')) { const link=$('build-version'); link.textContent=`Build ${v.commit.slice(0, 10)}`; link.href=`https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/commit/${v.commit}`; link.hidden=false; } }).catch(() => {});
+await loadSample(true);
 

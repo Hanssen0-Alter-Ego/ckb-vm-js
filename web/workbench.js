@@ -3,9 +3,10 @@ import { ckb, ckbToHex } from './guided.js';
 import { resolveCell, scriptChoices, inspectRequest, mutateCellList, decimalToRpc, rpcToDecimal, addDependencyCell, scriptName } from './workbench-model.js';
 
 // The JSON request is the source of truth. Each edit changes only its target field.
-export function createWorkbench(root, { read, write, edited }) {
+export function createWorkbench(root, { read, write, edited, snapshot, restore }) {
   let disabled = false;
   let selection = null;
+  let sessionBaseline = null;
   const expanded = new Set();
   let restoreFocus;
   const identities={inputs:[],outputs:[]};
@@ -29,7 +30,7 @@ export function createWorkbench(root, { read, write, edited }) {
     wrap.append(input); parent.append(wrap); return input;
   }
   function valid() { const bad = [...root.querySelectorAll('input,textarea,select')].find(n => !n.checkValidity()); if (bad) { bad.reportValidity(); return false; } return true; }
-  function updateDraftControl(){const b=root.querySelector('.discard-draft');if(b)b.hidden=![...root.querySelectorAll('input,textarea,select')].some(n=>!n.checkValidity());}
+  function updateDraftControl(){}
   let error;
   function script(parent, title, value, getOutput, key, request) {
     const details = el('details'); details.append(el('summary',key==='type'&&!value?`${title} · none`:title));if(key==='lock')details.dataset.defaultOpen='true';parent.append(details);
@@ -75,7 +76,7 @@ export function createWorkbench(root, { read, write, edited }) {
     const b=el('button',undefined,'cell-preview');b.type='button';b.disabled=disabled;b.onclick=onClick;
     b.append(el('span',`${identity} · ${kind} index ${index}`,'cell-number'));
     let capacity='Invalid capacity';try{capacity=`${ckb(cell.output.capacity)} CKB`;}catch{}
-    b.append(el('strong',capacity));const meta=el('span',undefined,'cell-meta');
+    b.append(el('strong',capacity,capacity.length>17?'capacity-long':undefined));const meta=el('span',undefined,'cell-meta');
     for(const kind of ['lock','type']){
       const marker=scriptMarker(cell?.output?.[kind]);const name=kind==='lock'?'Lock':'Type';
       const chip=el('span',marker?`${name} ${scriptName(cell.output[kind])} · ${marker.id}`:`${name} ${kind==='type'&&!cell?.output?.type?'—':'?'}`,'script-chip');
@@ -97,7 +98,7 @@ export function createWorkbench(root, { read, write, edited }) {
     refresh();
   }
   function refresh(resetIdentity=false) {
-    if(resetIdentity){identities.inputs=[];identities.outputs=[];resolvedIds.clear();selection=null;}
+    if(resetIdentity){identities.inputs=[];identities.outputs=[];resolvedIds.clear();selection=null;sessionBaseline=null;}
     const opened = new Set([...root.querySelectorAll('details[open]')].map(d => d.querySelector('summary')?.textContent));
     const activeLabel = root.querySelector('dialog[open]')?.contains(document.activeElement) ? document.activeElement.closest('label')?.firstChild?.textContent : null;
     root.querySelector('dialog')?.close();
@@ -240,7 +241,7 @@ export function createWorkbench(root, { read, write, edited }) {
     const depCards=[...deps.querySelectorAll(':scope > .wb-card')];
     depCards.forEach((editor,i)=>{
       const key=`dep:${i}`;editors.set(key,[`Cell dep ${i+1}`,editor]);
-      const b=el('button',String(i+1),'dep-dot'); b.type='button';b.disabled=disabled;
+      const kind=r.transaction.cell_deps[i]?.dep_type;const b=el('button',`${i+1} · ${kind??'invalid'}`,'dep-dot dep-kind'); b.type='button';b.disabled=disabled;
       const identity=JSON.stringify(r.transaction.cell_deps[i]?.out_point??i);const color=[...identity].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0)%6;
       b.style.setProperty('--dot', ['#a8d98d','#9db7ff','#ffcb86','#dca8eb','#82d5ca','#eea1ad'][color]);if(r.transaction.cell_deps[i]?.dep_type==='dep_group')b.classList.add('dep-group');
       b.setAttribute('aria-label',`Cell dep ${i+1} · ${r.transaction.cell_deps[i]?.dep_type??'invalid'} · open details`);
@@ -279,8 +280,8 @@ export function createWorkbench(root, { read, write, edited }) {
     const contextButton=button('Context',()=>open('context',contextButton),controls);contextButton.setAttribute('aria-label','Context');
     const settingsButton=button('Settings',()=>open('settings',settingsButton),controls);settingsButton.setAttribute('aria-label','Settings');
     function objectDots(label,key,items,manager,entries,itemLabel){
-      const row=el('div',undefined,'dep-rail');row.append(el('span',label,'rail-label'));rail.append(row);
-      entries.forEach(([title,editor],i)=>{const id=`${key}:${i}`;editors.set(id,[title,editor]);const b=el('button',String(i+1),'dep-dot');b.type='button';b.disabled=disabled;b.style.setProperty('--dot',['#a8d98d','#9db7ff','#ffcb86','#dca8eb','#82d5ca','#eea1ad'][i%6]);b.setAttribute('aria-label',`${itemLabel} ${itemLabel==='Witness'?i:i+1} · open details`);b.title=b.getAttribute('aria-label');b.onclick=()=>open(id,b);row.append(b);});
+      const row=el('div',undefined,'dep-rail');row.append(el('span',key==='witnesses'?'Witness index':label,'rail-label'));rail.append(row);
+      entries.forEach(([title,editor],i)=>{const id=`${key}:${i}`;editors.set(id,[title,editor]);const b=el('button',String(key==='witnesses'?i:i+1),'dep-dot');b.type='button';b.disabled=disabled;b.style.setProperty('--dot',['#a8d98d','#9db7ff','#ffcb86','#dca8eb','#82d5ca','#eea1ad'][i%6]);b.setAttribute('aria-label',`${itemLabel} ${itemLabel==='Witness'?i:i+1} · open details`);b.title=b.getAttribute('aria-label');b.onclick=()=>open(id,b);row.append(b);});
       if(!entries.length)row.append(el('span',Array.isArray(items)?'None':'Invalid array','hint'));
       editors.set(key,[label,manager]);const manage=button('Manage',()=>open(key,manage),row);manage.setAttribute('aria-label',`Manage ${label.toLowerCase()}`);
     }
@@ -290,6 +291,7 @@ export function createWorkbench(root, { read, write, edited }) {
     function open(key,trigger) {
       if(!valid())return;
       if(trigger)restoreFocus=trigger.getAttribute('aria-label');
+      if(sessionBaseline===null)sessionBaseline=snapshot();
       selection=key;
       const entry=editors.get(key);if(!entry){selection=null;return;}
       // Return dependency editors to their management container before switching.
@@ -298,7 +300,7 @@ export function createWorkbench(root, { read, write, edited }) {
       headerEditors.forEach(([,card])=>headerManager.insertBefore(card,headerManager.querySelector(':scope > button')));
       dialog.replaceChildren();
       const top=el('div',undefined,'inspector-heading');const title=el('h2',entry[0]);title.id='inspector-title';top.append(title);
-      const close=el('button','Done','secondary');close.type='button';close.onclick=()=>finish();top.append(close);const discard=el('button','Discard invalid draft','secondary discard-draft');discard.type='button';discard.hidden=true;discard.onclick=()=>finish(true);dialog.append(top,error,discard,entry[1]);
+      const close=el('button','Save','secondary');close.type='button';close.onclick=()=>finish();top.append(close);const discard=el('button','Cancel changes','secondary discard-draft');discard.type='button';discard.onclick=()=>finish(true);top.append(discard);dialog.append(top,el('p','Save keeps changes. Cancel restores the request from when this editor was opened.','hint'),error,entry[1]);
       dialog.querySelectorAll('[data-default-open]').forEach(d=>{d.open=true;});
       dialog.querySelectorAll('input,select,textarea,button').forEach(n=>{n.disabled=disabled;});
       if(!dialog.open)dialog.showModal();
@@ -308,8 +310,8 @@ export function createWorkbench(root, { read, write, edited }) {
       const dep=/^Edit cell dep ([0-9]+)$/.exec(restoreFocus);if(!target&&dep)target=nodes.find(n=>n.getAttribute('aria-label').startsWith(`Cell dep ${dep[1]} ·`));
       if(!target)target=nodes.find(n=>n.getAttribute('aria-label')==='Manage cell deps');target?.focus();
     }
-    function finish(discard=false){if(!discard&&!valid())return;selection=null;dialog.close();refresh();returnFocus();}
-    dialog.addEventListener('cancel',e=>{e.preventDefault();finish();});
+    function finish(discard=false){if(!discard&&!valid())return;selection=null;dialog.close();if(discard&&sessionBaseline!==null)restore(sessionBaseline);sessionBaseline=null;refresh(discard);returnFocus();}
+    dialog.addEventListener('cancel',e=>{e.preventDefault();finish(true);});
     if(selection)open(selection);
   }
   return {refresh,setBusy(v){disabled=v;root.querySelectorAll('input,select,textarea,button').forEach(n=>{n.disabled=v||n.dataset.boundary==='true';});},valid};

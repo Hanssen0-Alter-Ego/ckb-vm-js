@@ -9,3 +9,6 @@
 .cell-preview{border-left:3px solid var(--script,var(--line))!important}.script-chip{border-left:2px solid var(--script,var(--line));font-size:10px}.cell-meta{align-items:flex-start}.cell-row .cell-preview{border-radius:7px 7px 0 0}@media(max-width:600px){.cell-meta{flex-direction:column}.cell-number{font-size:9px}.object-rail .dep-rail{flex-basis:auto}}
 
 .hash-type-group{display:flex;gap:0;border:1px solid var(--line);border-radius:7px;overflow:hidden}.hash-type-group button{flex:1;margin:0;border:0;border-radius:0;border-right:1px solid var(--line);padding:10px 6px;min-width:0}.hash-type-group button:last-child{border:0}.hash-type-group button[aria-checked=true]{background:var(--lime);color:#17200e}.hash-type-group button:focus-visible{outline-offset:-3px}
+
+.cell-preview strong{white-space:nowrap;overflow-wrap:normal}.dep-dot.dep-kind{width:auto;min-width:44px;padding:0 10px;background:#263120;border:1px solid var(--dot);border-radius:8px;color:#d4dfcd}.inspector-heading{flex-wrap:wrap}.inspector-heading h2{margin-right:auto}@media(max-width:600px){.cell-columns:has(.capacity-long){grid-template-columns:1fr}.capacity-long{font-size:16px!important}}
+.cell-preview strong{display:block}

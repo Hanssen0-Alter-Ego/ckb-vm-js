@@ -20,6 +20,8 @@ test('guided mutation does not overwrite fixture or other context', () => {
 test('explanations follow returned engine results rather than chosen experiment', () => {
   assert.match(explain({ok:false,error:{code:'InvalidTransaction',message:'OutputsSumOverflow'}}),/cannot create extra/);
   assert.match(explain({ok:false,error:{code:'InvalidTransaction',message:'ExceededMaximumCycles'}}),/budget ran out/);
+  assert.match(explain({ok:false,error:{code:'ValidationFailure'}}),/Rejecting lock/);
+  assert.match(explain({ok:false,error:{code:'Other'}}),/Full engine response/);
   assert.match(explain({ok:true,scope:'script_group'}),/were not checked/);
   assert.match(explain({ok:true,scope:'transaction',fee:'0x1'}),/0.00000001 CKB/);
 });
