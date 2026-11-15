@@ -12,7 +12,7 @@ const workbench = createWorkbench($('workbench'), {
   read: () => readRequest($('request').value),
   write(request) { $('request').value = stringifyLossless(request); markEdited(); },
   edited: markEdited,
-  snapshot: () => ({ text: $('request').value, dirty }),
+  capture: () => ({ text: $('request').value, dirty }),
   restore(saved) { $('request').value = saved.text; markEdited(); dirty = saved.dirty; },
 });
 function markEdited() {

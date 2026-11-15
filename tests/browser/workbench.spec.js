@@ -81,7 +81,7 @@ test('large JSON numbers survive structured edits, export and verification witho
 
 test('cancel restores an editor session including new deps and exact unknown numbers',async({page})=>{
  await ready(page);await page.locator('#advanced summary').click();const input=page.locator('#request');const base=(await input.inputValue()).replace(/^\s*\{/, '{"exact":9007199254740993,');await input.fill(base);
- await edit(page,'output');await page.getByLabel('Output 1 capacity (CKB)',{exact:true}).fill('61');await page.getByRole('button',{name:'Cancel changes',exact:true}).click();expect(await input.inputValue()).toBe(base);
+ const id=await page.locator('.cell-column').nth(1).locator('.cell-row').first().getAttribute('data-cell-id');await edit(page,'output');await page.getByLabel('Output 1 capacity (CKB)',{exact:true}).fill('61');await page.getByRole('button',{name:'Cancel changes',exact:true}).click();expect(await input.inputValue()).toBe(base);expect(await page.locator('.cell-column').nth(1).locator('.cell-row').first().getAttribute('data-cell-id')).toBe(id);
  await page.getByRole('button',{name:'Manage cell deps'}).click();await page.getByRole('button',{name:'New resolved cell'}).click();await page.getByLabel('Cell dep 2 capacity (CKB)',{exact:true}).fill('invalid');await page.getByRole('button',{name:'Cancel changes',exact:true}).click();expect(await input.inputValue()).toBe(base);
  await edit(page,'output');await page.getByLabel('Output 1 capacity (CKB)',{exact:true}).fill('62');await page.keyboard.press('Escape');expect(await input.inputValue()).toBe(base);
 });

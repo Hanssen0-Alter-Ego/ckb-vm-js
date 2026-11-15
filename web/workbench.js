@@ -3,7 +3,7 @@ import { ckb, ckbToHex } from './guided.js';
 import { resolveCell, scriptChoices, inspectRequest, mutateCellList, decimalToRpc, rpcToDecimal, addDependencyCell, scriptName } from './workbench-model.js';
 
 // The JSON request is the source of truth. Each edit changes only its target field.
-export function createWorkbench(root, { read, write, edited, snapshot, restore }) {
+export function createWorkbench(root, { read, write, edited, capture, restore }) {
   let disabled = false;
   let selection = null;
   let sessionBaseline = null;
@@ -291,7 +291,7 @@ export function createWorkbench(root, { read, write, edited, snapshot, restore }
     function open(key,trigger) {
       if(!valid())return;
       if(trigger)restoreFocus=trigger.getAttribute('aria-label');
-      if(sessionBaseline===null)sessionBaseline=snapshot();
+      if(sessionBaseline===null)sessionBaseline={request:capture(),inputs:[...identities.inputs],outputs:[...identities.outputs],resolved:new Map(resolvedIds)};
       selection=key;
       const entry=editors.get(key);if(!entry){selection=null;return;}
       // Return dependency editors to their management container before switching.
@@ -310,7 +310,7 @@ export function createWorkbench(root, { read, write, edited, snapshot, restore }
       const dep=/^Edit cell dep ([0-9]+)$/.exec(restoreFocus);if(!target&&dep)target=nodes.find(n=>n.getAttribute('aria-label').startsWith(`Cell dep ${dep[1]} ·`));
       if(!target)target=nodes.find(n=>n.getAttribute('aria-label')==='Manage cell deps');target?.focus();
     }
-    function finish(discard=false){if(!discard&&!valid())return;selection=null;dialog.close();if(discard&&sessionBaseline!==null)restore(sessionBaseline);sessionBaseline=null;refresh(discard);returnFocus();}
+    function finish(discard=false){if(!discard&&!valid())return;selection=null;dialog.close();if(discard&&sessionBaseline!==null){restore(sessionBaseline.request);identities.inputs=sessionBaseline.inputs;identities.outputs=sessionBaseline.outputs;resolvedIds.clear();for(const [key,value] of sessionBaseline.resolved)resolvedIds.set(key,value);}sessionBaseline=null;refresh();returnFocus();}
     dialog.addEventListener('cancel',e=>{e.preventDefault();finish(true);});
     if(selection)open(selection);
   }
