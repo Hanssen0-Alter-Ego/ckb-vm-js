@@ -36,3 +36,15 @@ test('overview screenshots and direct Done commit',async({page})=>{
  await edit(page,'output');await page.screenshot({path:'test-results/overview-inspector.png',fullPage:true});await done(page);
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/overview-mobile.png',fullPage:true});
 });
+
+test('reordering follows the selected cell and tools restore their own focus',async({page})=>{
+ await ready(page);await page.getByRole('button',{name:'Add output',exact:true}).click();await edit(page,'output',2);
+ const f=page.getByLabel('Output 2 capacity (CKB)',{exact:true});await f.fill('61');await f.press('Tab');
+ await page.getByRole('button',{name:'↑',exact:true}).click();await expect(page.getByLabel('Output 1 capacity (CKB)',{exact:true})).toHaveValue('61');await done(page);
+ await page.getByRole('button',{name:'Settings',exact:true}).click();await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:'Settings',exact:true})).toBeFocused();
+ await page.getByRole('button',{name:/Dependency 1 ·/}).focus();await page.keyboard.press('Enter');await expect(page.locator('dialog')).toBeVisible();await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:/Dependency 1 ·/})).toBeFocused();
+});
+
+test('malformed structure has an explicit invalid-draft escape back to JSON',async({page})=>{
+ await ready(page);await page.locator('#advanced summary').click();let r=JSON.parse(await page.locator('#request').inputValue());r.transaction.outputs_data=null;await page.locator('#request').fill(JSON.stringify(r));await edit(page,'output');await page.getByLabel('Output 1 data (hex)',{exact:true}).fill('0xaa');await page.getByRole('button',{name:'Discard invalid draft',exact:true}).click();await expect(page.locator('dialog')).not.toBeVisible();expect(JSON.parse(await page.locator('#request').inputValue()).transaction.outputs_data).toBeNull();r.transaction.outputs_data=['0x'];await page.locator('#request').fill(JSON.stringify(r));await edit(page,'output');await page.getByLabel('Output 1 data (hex)',{exact:true}).fill('0xaa');await done(page);expect(JSON.parse(await page.locator('#request').inputValue()).transaction.outputs_data).toEqual(['0xaa']);
+});

@@ -15,14 +15,16 @@ export function createWorkbench(root, { read, write, edited }) {
     const input = el(options ? 'select' : area ? 'textarea' : 'input');
     if (options) for (const [v, title] of options) { const o = el('option', title); o.value = v; input.append(o); }
     input.value = value ?? ''; input.disabled = disabled; input.spellcheck = false;
-    input.oninput = () => { edited(); try { parse(input.value); input.setCustomValidity(''); } catch(e) { input.setCustomValidity(e.message); } };
+    input.oninput = () => { edited(); try { const v=parse(input.value); input.setCustomValidity(''); commit(r=>apply(r,v),false); } catch(e) { input.setCustomValidity(e.message); } updateDraftControl(); };
     input.onchange = () => {
       try { const v = parse(input.value); commit(r => apply(r, v), false); }
       catch (e) { input.setCustomValidity(e.message); error.textContent = `${label}: ${e.message}`; input.reportValidity(); }
+      updateDraftControl();
     };
     wrap.append(input); parent.append(wrap); return input;
   }
   function valid() { const bad = [...root.querySelectorAll('input,textarea,select')].find(n => !n.checkValidity()); if (bad) { bad.reportValidity(); return false; } return true; }
+  function updateDraftControl(){const b=root.querySelector('.discard-draft');if(b)b.hidden=![...root.querySelectorAll('input,textarea,select')].some(n=>!n.checkValidity());}
   let error;
   function script(parent, title, value, getOutput, key, request) {
     const details = el('details'); details.append(el('summary', title)); parent.append(details);
@@ -85,7 +87,7 @@ export function createWorkbench(root, { read, write, edited }) {
     } else witnesses.append(el('p','witnesses must be an array; edit JSON.','wb-error'));
     const deps=el('section',undefined,'wb-section');deps.append(el('h3','Cell dependencies'));root.append(deps);
     if(Array.isArray(r.transaction.cell_deps)) {
-      r.transaction.cell_deps.forEach((dep,i)=>{const row=el('div',undefined,'wb-card');deps.append(row);if (!dep || typeof dep !== 'object' || Array.isArray(dep)) { row.append(el('p','Invalid dependency entry. Correct it in JSON.','wb-error')); return; }row.append(el('p',`${dep.out_point?.tx_hash}:${dep.out_point?.index}`,'hint'));field(row,`Dependency ${i+1} kind`,dep.dep_type,(q,v)=>{q.transaction.cell_deps[i].dep_type=v;},{options:[['code','Code'],['dep_group','Dep group']]});button(`Remove dependency ${i+1}`,()=>commit(q=>{q.transaction.cell_deps.splice(i,1);selection='deps';}),row);});
+      r.transaction.cell_deps.forEach((dep,i)=>{const row=el('div',undefined,'wb-card');deps.append(row);if (!dep || typeof dep !== 'object' || Array.isArray(dep)) { row.append(el('p','Invalid dependency entry. Correct it in JSON.','wb-error')); return; }row.append(el('p',`${dep.out_point?.tx_hash}:${dep.out_point?.index}`,'hint'));const resolved=resolveCell(r,dep.out_point);const raw=el('details');raw.append(el('summary',resolved?'Resolved cell · full data':'Unresolved dependency'),el('pre',resolved?JSON.stringify(resolved,null,2):'Supply a unique matching context.cells entry in JSON.'));row.append(raw);field(row,`Dependency ${i+1} kind`,dep.dep_type,(q,v)=>{q.transaction.cell_deps[i].dep_type=v;},{options:[['code','Code'],['dep_group','Dep group']]});button(`Remove dependency ${i+1}`,()=>commit(q=>{q.transaction.cell_deps.splice(i,1);selection='deps';}),row);});
       const select=el('select');select.disabled=disabled;select.setAttribute('aria-label','Resolved cell to add as dependency');r.context.cells.forEach((c,i)=>{const o=el('option',`${i+1} · ${c?.out_point?.tx_hash}:${c?.out_point?.index}`);o.value=String(i);select.append(o);});deps.append(select);
       button('Add selected cell as code dependency',()=>commit(q=>{const c=q.context.cells[Number(select.value)];if(!c?.out_point)throw new Error('Select a resolved cell with an outpoint.');q.transaction.cell_deps.push({out_point:structuredClone(c.out_point),dep_type:'code'});}),deps);
     }
@@ -114,7 +116,7 @@ export function createWorkbench(root, { read, write, edited }) {
     if(delta) snapshot.append(delta);
     const columns = el('div',undefined,'cell-columns'); snapshot.append(columns);
     const choices = scriptChoices(r);
-    const scriptId = value => { const index=choices.findIndex(s=>s.code_hash?.toLowerCase()===value?.code_hash?.toLowerCase()&&s.hash_type===value?.hash_type&&s.args?.toLowerCase()===value?.args?.toLowerCase()); return index<0?'?':String(index+1); };
+    const scriptId = value => { const index=choices.findIndex(s=>String(s.code_hash).toLowerCase()===String(value?.code_hash).toLowerCase()&&s.hash_type===value?.hash_type&&String(s.args).toLowerCase()===String(value?.args).toLowerCase()); return index<0?'?':String(index+1); };
     for (const [kind, section] of [['inputs',inputs],['outputs',outputs]]) {
       const column = el('section',undefined,'cell-column'); columns.append(column);
       const list = r.transaction[kind];
@@ -150,7 +152,8 @@ export function createWorkbench(root, { read, write, edited }) {
     depCards.forEach((editor,i)=>{
       const key=`dep:${i}`;editors.set(key,[`Dependency ${i+1}`,editor]);
       const b=el('button',String(i+1),'dep-dot'); b.type='button';b.disabled=disabled;
-      b.style.setProperty('--dot', ['#a8d98d','#9db7ff','#ffcb86','#dca8eb','#82d5ca','#eea1ad'][i%6]);
+      const identity=JSON.stringify(r.transaction.cell_deps[i]?.out_point??i);const color=[...identity].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0)%6;
+      b.style.setProperty('--dot', ['#a8d98d','#9db7ff','#ffcb86','#dca8eb','#82d5ca','#eea1ad'][color]);if(r.transaction.cell_deps[i]?.dep_type==='dep_group')b.classList.add('dep-group');
       b.setAttribute('aria-label',`Dependency ${i+1} · ${r.transaction.cell_deps[i]?.dep_type??'invalid'} · open details`);
       b.title=b.getAttribute('aria-label');b.onclick=()=>open(key,b);depRail.append(b);
     });
@@ -161,6 +164,7 @@ export function createWorkbench(root, { read, write, edited }) {
     const witnessButton=button(`Witnesses · ${Array.isArray(r.transaction.witnesses)?r.transaction.witnesses.length:'invalid'}`,()=>open('witnesses',witnessButton),rail);witnessButton.setAttribute('aria-label',witnessButton.textContent);
     const settings=el('section'); settings.append(cycles,scope);
     settings.append(el('p','Consensus, headers and full context remain editable in JSON. Cells added here are synthetic. No chain data is fetched.','hint'));
+    const context=el('details');context.append(el('summary',`Headers · ${Array.isArray(r.transaction.header_deps)?r.transaction.header_deps.length:'invalid'} references`),el('pre',JSON.stringify({header_deps:r.transaction.header_deps,headers:r.context.headers,consensus:r.context.consensus},null,2)));settings.append(context);
     editors.set('settings',['Verification settings',settings]);
     const settingsButton=button('Settings',()=>open('settings',settingsButton),rail);settingsButton.setAttribute('aria-label','Settings');
     root.replaceChildren(error,snapshot);
@@ -175,11 +179,11 @@ export function createWorkbench(root, { read, write, edited }) {
       depCards.forEach(card=>deps.insertBefore(card,deps.querySelector(':scope > select')));
       dialog.replaceChildren();
       const top=el('div',undefined,'inspector-heading');const title=el('h2',entry[0]);title.id='inspector-title';top.append(title);
-      const close=el('button','Done','secondary');close.type='button';close.onclick=finish;top.append(close);dialog.append(top,error,entry[1]);
+      const close=el('button','Done','secondary');close.type='button';close.onclick=()=>finish();top.append(close);const discard=el('button','Discard invalid draft','secondary discard-draft');discard.type='button';discard.hidden=true;discard.onclick=()=>finish(true);dialog.append(top,error,discard,entry[1]);
       dialog.querySelectorAll('input,select,textarea,button').forEach(n=>{n.disabled=disabled;});
       if(!dialog.open)dialog.showModal();
     }
-    function finish(){if(!valid())return;selection=null;dialog.close();refresh();if(restoreFocus)[...root.querySelectorAll('[aria-label]')].find(n=>n.getAttribute('aria-label')===restoreFocus)?.focus();}
+    function finish(discard=false){if(!discard&&!valid())return;selection=null;dialog.close();refresh();if(restoreFocus)[...root.querySelectorAll('[aria-label]')].find(n=>n.getAttribute('aria-label')===restoreFocus)?.focus();}
     dialog.addEventListener('cancel',e=>{e.preventDefault();finish();});
     dialog.addEventListener('close',()=>{if(!selection&&restoreFocus)[...root.querySelectorAll('[aria-label]')].find(n=>n.getAttribute('aria-label')===restoreFocus)?.focus();});
     if(selection)open(selection);

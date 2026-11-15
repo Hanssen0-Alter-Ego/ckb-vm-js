@@ -5,11 +5,10 @@ const $ = (id) => document.getElementById(id);
 const limit = 2 * 1024 * 1024;
 let active;
 let loading = false;
-function customMode() {}
 const size = (text) => new TextEncoder().encode(text).length;
 const workbench = createWorkbench($('workbench'), {
   read: () => readRequest($('request').value),
-  write(request) { customMode(); $('request').value = JSON.stringify(request, null, 2); markEdited(); },
+  write(request) { $('request').value = JSON.stringify(request, null, 2); markEdited(); },
   edited: markEdited,
 });
 function markEdited() {
@@ -39,7 +38,7 @@ function busy(value) {
   $('cancel').disabled = !value || loading;
   $('cancel').hidden = !value || loading;
 }
-async function loadSample(asGuided = false) {
+async function loadSample() {
   if (active || loading) return;
   loading = true; busy(true); clearOutput(); status('Loading sample');
   try {
@@ -62,7 +61,7 @@ $('upload').addEventListener('change', async (event) => {
   try {
     if (file.size > limit) throw new Error('File exceeds the 2 MiB limit.');
     const request = readRequest(await file.text());
-    customMode(); $('advanced').open = true; $('explanation').textContent = 'Imported data has not been verified.';
+    $('advanced').open = false; $('explanation').textContent = 'Imported data has not been verified.';
     $('request').value = JSON.stringify(request, null, 2);
     workbench.refresh(); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
     $('result').textContent = 'No verification has run for this input.';
@@ -71,7 +70,7 @@ $('upload').addEventListener('change', async (event) => {
 });
 $('request').addEventListener('input', () => {
   workbench.refresh();
-  customMode(); $('explanation').textContent = 'Input changed. The previous result no longer applies.';
+  $('explanation').textContent = 'Input changed. The previous result no longer applies.';
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
   $('result').textContent = 'Previous output cleared because the input changed.';
 });
