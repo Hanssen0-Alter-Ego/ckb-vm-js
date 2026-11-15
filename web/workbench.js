@@ -1,3 +1,4 @@
+import { rawNumber } from './lossless-json.js';
 import { ckb, ckbToHex } from './guided.js';
 import { resolveCell, scriptChoices, inspectRequest, mutateCellList, decimalToRpc, rpcToDecimal, addDependencyCell, scriptName } from './workbench-model.js';
 
@@ -18,11 +19,11 @@ export function createWorkbench(root, { read, write, edited }) {
     const wrap = el('label', label, 'wb-field');
     const input = el(options ? 'select' : area ? 'textarea' : 'input');
     if (options) for (const [v, title] of options) { const o = el('option', title); o.value = v; input.append(o); }
-    input.value = value ?? ''; input.disabled = disabled; input.spellcheck = false;
+    input.value = value ?? ''; input.disabled = disabled; input.spellcheck = false; input.setAttribute('aria-label', label);
     input.oninput = () => { edited(); try { const v=parse(input.value); input.setCustomValidity(''); commit(r=>apply(r,v),false); } catch(e) { input.setCustomValidity(e.message); } updateDraftControl(); };
     input.onchange = () => {
       try { const v = parse(input.value); commit(r => apply(r, v), false); }
-      catch (e) { input.setCustomValidity(e.message); error.textContent = `${label}: ${e.message}`; input.reportValidity(); }
+      catch (e) { input.setCustomValidity(e.message); error.textContent = `${label}: ${e.message}`; }
       updateDraftControl();
     };
     wrap.append(input); parent.append(wrap); return input;
@@ -162,6 +163,8 @@ export function createWorkbench(root, { read, write, edited }) {
     root.querySelectorAll('details').forEach(d => { d.open = opened.has(d.querySelector('summary')?.textContent)||d.dataset.defaultOpen==='true'; });
   }
   function structuredFields(parent,value,path,label) {
+    const raw = rawNumber(value);
+    if (raw !== null) { parent.append(el('p', `${label}: ${raw} (edit this exact JSON number in JSON)`, 'hint')); return; }
     const set=(q,v)=>{let target=q;for(const key of path.slice(0,-1))target=target[key];target[path.at(-1)]=v;};
     if(value===undefined||value===null){parent.append(el('p',`${label}: ${value===null?'null (explicit absence)':'not supplied'}`,'hint'));if(value===null&&path.at(-1)==='data')button('Supply extension bytes',()=>commit(q=>set(q,'0x')),parent);return;}
     if(typeof value==='object'){

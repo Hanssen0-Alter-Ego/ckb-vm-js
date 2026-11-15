@@ -1,4 +1,5 @@
 import { createWorkbench } from './workbench.js';
+import { parseLossless, stringifyLossless } from './lossless-json.js';
 import { explain } from './guided.js';
 import { createWorkerVerifier } from './js/index.js';
 const $ = (id) => document.getElementById(id);
@@ -8,7 +9,7 @@ let loading = false;
 const size = (text) => new TextEncoder().encode(text).length;
 const workbench = createWorkbench($('workbench'), {
   read: () => readRequest($('request').value),
-  write(request) { $('request').value = JSON.stringify(request, null, 2); markEdited(); },
+  write(request) { $('request').value = stringifyLossless(request); markEdited(); },
   edited: markEdited,
 });
 function markEdited() {
@@ -27,7 +28,7 @@ function fail(error, stage = 'Input error') {
 }
 function readRequest(text) {
   if (size(text) > limit) throw new Error('Input exceeds the 2 MiB limit.');
-  const value = JSON.parse(text);
+  const value = parseLossless(text);
   const request = value?.request ?? value;
   if (!request || typeof request !== 'object' || Array.isArray(request)) throw new Error('Expected a request object or a fixture containing request.');
   return request;
@@ -44,8 +45,8 @@ async function loadSample() {
   try {
     const response = await fetch(new URL(`./fixtures/${$('sample').value}.json`, import.meta.url));
     if (!response.ok) throw new Error(`Sample fetch failed (${response.status}).`);
-    const fixture = await response.json();
-    $('request').value = JSON.stringify(fixture.request, null, 2);
+    const fixture = parseLossless(await response.text());
+    $('request').value = stringifyLossless(fixture.request);
 
     $('explanation').textContent = 'No verification has run for this input.';
     $('result').textContent = 'No verification has run for this input.';
@@ -62,7 +63,7 @@ $('upload').addEventListener('change', async (event) => {
     if (file.size > limit) throw new Error('File exceeds the 2 MiB limit.');
     const request = readRequest(await file.text());
     $('advanced').open = false; $('explanation').textContent = 'Imported data has not been verified.';
-    $('request').value = JSON.stringify(request, null, 2);
+    $('request').value = stringifyLossless(request);
     workbench.refresh(true); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
     $('result').textContent = 'No verification has run for this input.';
   } catch (error) { fail(error); }
@@ -77,7 +78,7 @@ $('request').addEventListener('input', () => {
 $('download').addEventListener('click', () => {
   if (!workbench.valid()) return;
   try {
-    const content = JSON.stringify(readRequest($('request').value), null, 2);
+    const content = stringifyLossless(readRequest($('request').value));
     const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
     const link = document.createElement('a'); link.href = url; link.download = 'ckb-verification-request.json'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -90,7 +91,7 @@ $('run').addEventListener('click', async () => {
   let request;
   try { request = readRequest($('request').value); } catch (error) { fail(error); return; }
   const started = performance.now();
-  const worker = new Worker(new URL('./js/worker.js', import.meta.url), { type: 'module' });
+  const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
   let rejectStop;
   const stopped = new Promise((_, reject) => { rejectStop = reject; });
   const run = { stop(message) { worker.terminate(); rejectStop(new Error(message)); } };
@@ -102,7 +103,7 @@ $('run').addEventListener('click', async () => {
   try {
     // Racing init as well as verification lets Cancel terminate a stalled WASM fetch.
     verifier = await Promise.race([createWorkerVerifier({ worker }), stopped]);
-    const result = await Promise.race([verifier.verify(request), stopped]);
+    const result = await Promise.race([verifier.verify(stringifyLossless(request)), stopped]);
     $('result').textContent = JSON.stringify(result, null, 2);
     $('scope').textContent = (result.scope ?? (request.script_group ? 'script_group' : 'transaction')) === 'script_group' ? 'Selected script group' : 'Transaction';
     $('cycles').textContent = result.cycles === undefined ? '—' : BigInt(result.cycles).toLocaleString('en-US');

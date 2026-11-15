@@ -68,3 +68,13 @@ test('unknown hash types survive inspection and radio keyboard selection is expl
 test('input and dep editors share a resolved cell and dep-group changes preserve bytes',async({page})=>{
  await ready(page);await page.locator('#advanced summary').click();let r=JSON.parse(await page.locator('#request').inputValue());r.transaction.cell_deps[0].out_point=structuredClone(r.transaction.inputs[0].previous_output);await page.locator('#request').fill(JSON.stringify(r));await page.locator('#advanced summary').click();await page.getByRole('button',{name:'Manage cell deps',exact:true}).click();await page.getByRole('button',{name:'Edit cell dep 1',exact:true}).click();await page.getByLabel('Cell dep 1 data (hex)',{exact:true}).fill('0xaabb');await page.getByLabel('Cell dep 1 kind',{exact:true}).selectOption('dep_group');await done(page);await expect(page.getByRole('button',{name:'Cell dep 1 · dep_group · open details',exact:true})).toBeFocused();await edit(page,'input');await expect(page.getByLabel('Input 1 data (hex)',{exact:true})).toHaveValue('0xaabb');await done(page);r=JSON.parse(await page.locator('#request').inputValue());expect(r.context.cells[0].data).toBe('0xaabb');expect(r.transaction.cell_deps[0].out_point).toEqual(r.transaction.inputs[0].previous_output);
 });
+
+test('large JSON numbers survive structured edits, export and verification without rounding', async ({page})=>{
+ await ready(page);await page.locator('#advanced summary').click();
+ const input=page.locator('#request');const original=await input.inputValue();
+ const edited=original.replace(/^\s*\{/, '{"unknown_large":9007199254740993,"unknown_decimal":0.1234567890123456789,"unknown_text":"9007199254740993",');
+ await input.fill(edited);await edit(page,'input');await page.getByLabel('Input 1 capacity (CKB)',{exact:true}).fill('1001');await done(page);
+ const after=await input.inputValue();expect(after).toContain('"unknown_large": 9007199254740993');expect(after).toContain('"unknown_decimal": 0.1234567890123456789');expect(after).toContain('"unknown_text": "9007199254740993"');
+ await page.locator('.example-menu summary').click();const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export JSON'}).click();const download=await pending;const stream=await download.createReadStream();let exported='';for await (const chunk of stream)exported+=chunk.toString();expect(exported).toContain('"unknown_large": 9007199254740993');
+ await page.getByRole('button',{name:'Run verification'}).click();await expect(page.locator('#status')).toHaveText(/^(Passed snapshot|Rejected)$/);await expect(input).toHaveValue(after);
+});
