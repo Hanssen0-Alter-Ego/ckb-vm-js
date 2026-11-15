@@ -22,15 +22,26 @@ The builder refuses to proceed without real generated WASM and bindings.
 
 ## Interaction
 
-Choose a sample and click **Load sample**. Inspect or edit its JSON, then click
-**Run verification**. Import accepts a request object or a fixture containing
+The default guided mode needs no JSON. Pick a valid transfer, overspend, low
+cycle-budget or deliberately rejecting toy-lock experiment. Enter the new cell's
+capacity in decimal CKB and select a cycle budget, then click **Run verification**.
+Amounts are converted with BigInt, preserving all eight decimal places. Results
+show plain-language explanations, decimal cycles and CKB fees from the actual
+engine response. Raw requests and responses stay in expandable advanced sections.
+
+Guided controls generate only the bundled synthetic fixtures. They are not a
+wallet or general transaction builder. Importing, editing JSON or loading a
+developer fixture explicitly disables the guided fields; selecting an experiment
+resets to guided mode. Invalid guided amounts cannot run or export a stale request.
+
+In Advanced mode, choose a sample and click **Load sample**, or edit/import JSON. Import accepts a request object or a fixture containing
 `request`; export saves only the request. Neither operation uploads data. Input
 is kept in page memory and is lost on reload. Editing clears stale output.
 
 To check only a script group, use the selected-lock sample or supply
 `script_group: { group_type: "lock" | "type", script_hash: "0x…" }` in the request.
 The hash identifies the complete script, not just its code. Omit `script_group`
-for transaction scope. The app passes the request to the existing API unchanged;
+for transaction scope. The advanced mode passes the request to the existing API unchanged;
 it does not inject consensus or infer a network.
 
 A successful response is conditional on supplied data. `chain_state_verified`
