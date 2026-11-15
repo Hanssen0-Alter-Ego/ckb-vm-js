@@ -35,6 +35,5 @@ export function stringifyLossless(value, space = 2) {
     numbers.push(raw);
     return `${prefix}${numbers.length - 1}__`;
   }, space);
-  numbers.forEach((raw, index) => { result = result.split(JSON.stringify(`${prefix}${index}__`)).join(raw); });
-  return result;
+  return result.replace(new RegExp(`"${prefix}(\\d+)__"`, 'g'), (_match, index) => numbers[Number(index)]);
 }
