@@ -90,6 +90,7 @@ $('run').addEventListener('click', async () => {
   clearOutput();
   let request;
   try { request = readRequest($('request').value); } catch (error) { fail(error); return; }
+  const requestJson = stringifyLossless(request);
   const started = performance.now();
   const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
   let rejectStop;
@@ -103,7 +104,7 @@ $('run').addEventListener('click', async () => {
   try {
     // Racing init as well as verification lets Cancel terminate a stalled WASM fetch.
     verifier = await Promise.race([createWorkerVerifier({ worker }), stopped]);
-    const result = await Promise.race([verifier.verify(stringifyLossless(request)), stopped]);
+    const result = await Promise.race([verifier.verify(requestJson), stopped]);
     $('result').textContent = JSON.stringify(result, null, 2);
     $('scope').textContent = (result.scope ?? (request.script_group ? 'script_group' : 'transaction')) === 'script_group' ? 'Selected script group' : 'Transaction';
     $('cycles').textContent = result.cycles === undefined ? '—' : BigInt(result.cycles).toLocaleString('en-US');
