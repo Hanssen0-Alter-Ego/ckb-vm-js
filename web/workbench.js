@@ -20,7 +20,7 @@ export function createWorkbench(root, { read, write, edited }) {
     const input = el(options ? 'select' : area ? 'textarea' : 'input');
     if (options) for (const [v, title] of options) { const o = el('option', title); o.value = v; input.append(o); }
     input.value = value ?? ''; input.disabled = disabled; input.spellcheck = false; input.setAttribute('aria-label', label);
-    input.oninput = () => { edited(); try { const v=parse(input.value); input.setCustomValidity(''); commit(r=>apply(r,v),false); } catch(e) { input.setCustomValidity(e.message); } updateDraftControl(); };
+    input.oninput = () => { edited(); try { const v=parse(input.value); input.setCustomValidity(''); commit(r=>apply(r,v),false); error.textContent=''; } catch(e) { input.setCustomValidity(e.message); error.textContent = `${label}: ${e.message}`; } updateDraftControl(); };
     input.onchange = () => {
       try { const v = parse(input.value); commit(r => apply(r, v), false); }
       catch (e) { input.setCustomValidity(e.message); error.textContent = `${label}: ${e.message}`; }
@@ -310,7 +310,6 @@ export function createWorkbench(root, { read, write, edited }) {
     }
     function finish(discard=false){if(!discard&&!valid())return;selection=null;dialog.close();refresh();returnFocus();}
     dialog.addEventListener('cancel',e=>{e.preventDefault();finish();});
-    dialog.addEventListener('close',()=>{if(!selection)returnFocus();});
     if(selection)open(selection);
   }
   return {refresh,setBusy(v){disabled=v;root.querySelectorAll('input,select,textarea,button').forEach(n=>{n.disabled=v||n.dataset.boundary==='true';});},valid};
