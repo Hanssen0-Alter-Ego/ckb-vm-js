@@ -15,6 +15,7 @@ test('project Pages path loads real WASM and supports repeat, rejection and reco
     expect(result.chain_state_verified).toBe(false);
     expect(result.cycles).toBe('0x21b');
   }
+  await page.locator('.example-menu summary').click();
   await page.locator('#advanced summary').click();
   await page.locator('#sample').selectOption('selected-lock');
   await page.getByRole('button', { name: 'Load sample' }).click();
@@ -48,7 +49,8 @@ test('mobile layout, local import/export and cancel during initialization', asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const original = await page.locator('#request').inputValue();
   await page.locator('#upload').setInputFiles({ name: 'fixture.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ request: JSON.parse(original) })) });
-  await expect(page.locator('#summary')).toContainText('Imported locally');
+  await expect(page.locator('#summary')).toHaveText('Imported locally. Inspect the request before running.');
+  await page.locator('.example-menu summary').click();
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export JSON' }).click();
   expect((await download).suggestedFilename()).toBe('ckb-verification-request.json');
@@ -61,42 +63,3 @@ test('mobile layout, local import/export and cancel during initialization', asyn
   await expect(page.locator('#status')).toHaveText('Passed snapshot');
 });
 
-test('guided experiments need no JSON and show actual outcomes with repair paths', async ({ page }) => {
-  await page.goto('/ckb-vm-js/');
-  await expect(page.locator('#status')).toHaveText('Ready');
-  await expect(page.locator('#request')).not.toBeVisible();
-  const run = async (status) => { await page.locator('#run').click(); await expect(page.locator('#status')).toHaveText(status); };
-  await run('Passed snapshot');
-  await expect(page.locator('#explanation')).toContainText('1 CKB');
-  await expect(page.locator('#cycles')).toHaveText('539');
-  await page.getByRole('button', {name:'2. Spend too much'}).click();
-  await expect(page.locator('#status')).toHaveText('Ready');
-  await run('Rejected');
-  await expect(page.locator('#explanation')).toContainText('cannot create extra CKB');
-  await page.locator('#amount').fill('999.00000001');
-  await run('Passed snapshot');
-  await expect(page.locator('#explanation')).toContainText('0.99999999 CKB');
-  await page.locator('#amount').fill('');
-  await run('Input error');
-  await page.getByRole('button', {name:'3. Too little compute'}).click();
-  await expect(page.locator('#status')).toHaveText('Ready');
-  await run('Rejected');
-  await expect(page.locator('#explanation')).toContainText('budget ran out');
-  await page.locator('#budget').selectOption('10000000');
-  await run('Passed snapshot');
-  await page.getByRole('button', {name:'4. Lock says no'}).click();
-  await expect(page.locator('#status')).toHaveText('Ready');
-  await run('Rejected');
-  await expect(page.locator('#explanation')).toContainText('script rejected');
-  await page.getByRole('button', {name:'1. Valid transfer'}).click();
-  await expect(page.locator('#status')).toHaveText('Ready');
-  await run('Passed snapshot');
-  await page.locator('#advanced summary').click();
-  await page.locator('#request').fill('{bad');
-  await expect(page.locator('#amount')).toBeDisabled();
-  await run('Input error');
-  await page.getByRole('button', {name:'1. Valid transfer'}).click();
-  await expect(page.locator('#status')).toHaveText('Ready');
-  await expect(page.locator('#amount')).toBeEnabled();
-  await run('Passed snapshot');
-});

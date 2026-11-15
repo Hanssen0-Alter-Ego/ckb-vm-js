@@ -55,3 +55,9 @@ jobs:
         with:
           name: ckb-vm-js-package
           path: '*.tgz'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-evidence
+          path: test-results/
