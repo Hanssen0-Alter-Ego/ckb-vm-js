@@ -4,3 +4,11 @@
 
 
 .wb-section{margin:24px 0;border-top:1px solid var(--line);padding-top:12px}.wb-section h3{font-size:18px}.wb-card{padding:16px;margin:12px 0;background:#11190e;border:1px solid var(--line);border-radius:5px}.wb-card h4{margin:0 0 10px}.wb-field{margin:14px 0}.wb-field input,.wb-field select,.wb-section>select{display:block;width:100%;min-width:0;margin-top:7px;background:#10160e;border:1px solid #495540;color:#d8e4cf;padding:10px;font:12px/1.5 ui-monospace,monospace}.wb-field textarea{height:90px;margin-top:7px;padding:10px}.wb-tools{display:flex;flex-wrap:wrap;gap:6px}.wb-tools button{padding:6px 10px}.wb-error,.wb-diagnostics{color:#ffb9a5;font-size:12px;line-height:1.6;overflow-wrap:anywhere}.wb-error:empty,.wb-diagnostics:empty{display:none}.wb-totals{font-weight:600;color:var(--lime);line-height:1.6}.wb-card details{margin-top:12px}.wb-card summary{padding:10px 0}.wb-section button{margin-top:6px}#workbench input:invalid{border-color:#ffb9a5}.output{align-self:start;position:sticky;top:16px}@media(max-width:850px){.output{position:static}}
+
+/* Outpoints, diagnostics and script choices can be wider than a phone. Keep
+   their intrinsic widths from expanding the grid, without hiding content. */
+#workbench{min-width:0;overflow-wrap:anywhere}
+#workbench section,#workbench article,#workbench details,#workbench label{min-width:0;max-width:100%}
+#workbench select,#workbench input,#workbench textarea,#workbench button{max-width:100%}
+#workbench details>select{display:block;width:100%}
+#workbench button{white-space:normal;overflow-wrap:anywhere}

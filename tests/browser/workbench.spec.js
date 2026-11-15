@@ -19,6 +19,8 @@ test('structured edits, JSON round trips and recovery preserve unrelated fields'
 test('malformed entries retain JSON; invalid CKB does not export stale input; mobile fits',async({page})=>{
  await page.setViewportSize({width:390,height:844});await page.goto('/ckb-vm-js/');await expect(page.locator('#status')).toHaveText('Ready');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.getByText('Input 1 lock',{exact:true}).click();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.getByLabel('Output 1 capacity (CKB)',{exact:true}).fill('oops');await page.getByLabel('Output 1 capacity (CKB)',{exact:true}).press('Tab');
  expect(await page.getByLabel('Output 1 capacity (CKB)',{exact:true}).evaluate(e=>e.validity.valid)).toBe(false);
  await page.locator('#advanced summary').click();let r=JSON.parse(await page.locator('#request').inputValue());r.transaction.inputs=[null];await page.locator('#request').fill(JSON.stringify(r));await expect(page.locator('#workbench')).toContainText('Invalid cell entry');expect(JSON.parse(await page.locator('#request').inputValue()).transaction.inputs).toEqual([null]);
