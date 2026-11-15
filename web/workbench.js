@@ -1,6 +1,6 @@
 import { rawNumber } from './lossless-json.js';
 import { ckb, ckbToHex } from './guided.js';
-import { resolveCell, scriptChoices, inspectRequest, mutateCellList, decimalToRpc, rpcToDecimal, addDependencyCell, scriptName } from './workbench-model.js';
+import { resolveCell, scriptChoices, inspectRequest, mutateCellList, decimalToRpc, rpcToDecimal, addDependencyCell, changeDependencyReference, scriptName } from './workbench-model.js';
 
 // The JSON request is the source of truth. Each edit changes only its target field.
 export function createWorkbench(root, { read, write, edited, capture, restore }) {
@@ -146,7 +146,14 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
         field(row,`Cell dep ${i+1} kind`,dep.dep_type,(q,v)=>{q.transaction.cell_deps[i].dep_type=v;},{options:[['code','Code'],['dep_group','Dep group']]});
         const cell=resolveCell(r,dep.out_point);const get=q=>resolveCell(q,q.transaction.cell_deps[i].out_point);
         cellFields(row,`Cell dep ${i+1}`,cell,q=>get(q).output,(q,v)=>{get(q).data=v;},r);
-        const ref=el('details');ref.append(el('summary','Reference & origin'),el('p',`${dep.out_point?.tx_hash}:${dep.out_point?.index}`,'hint'));row.append(ref);
+        const ref=el('details');ref.append(el('summary','Reference & origin'));row.append(ref);
+        ref.append(el('p',cell?'Changing this reference updates the resolved cell and every input or cell dep that refers to it.':'No unique resolved cell matches. Applying a reference changes only this dependency.','hint'));
+        if(dep.out_point && typeof dep.out_point==='object' && !Array.isArray(dep.out_point)) {
+          const refField=(label,value)=>{const wrap=el('label',label,'wb-field');const input=el('input');input.value=typeof value==='string'?value:'';input.setAttribute('aria-label',label);input.spellcheck=false;wrap.append(input);ref.append(wrap);return input;};
+          const hash=refField(`Cell dep ${i+1} transaction hash`,dep.out_point.tx_hash);const index=refField(`Cell dep ${i+1} output index (RPC hex)`,dep.out_point.index);
+          const initialHash=hash.value, initialIndex=index.value;const pending=()=>{const message=hash.value!==initialHash||index.value!==initialIndex?'Apply the reference or cancel changes before saving.':'';hash.setCustomValidity(message);index.setCustomValidity(message);};hash.oninput=pending;index.oninput=pending;
+          const apply=el('button','Apply reference','secondary');apply.type='button';apply.onclick=()=>{const bad=[...root.querySelectorAll('input,textarea,select')].find(n=>n!==hash&&n!==index&&!n.checkValidity());if(bad){bad.reportValidity();return;}try{write(changeDependencyReference(read(),i,{tx_hash:hash.value,index:index.value}));refresh();}catch(e){error.textContent=e.message;}};ref.append(apply);
+        } else ref.append(el('p','Reference is not an object; repair this malformed value in JSON.','wb-error'));
         if(cell)structuredFields(ref,cell.transaction_info,['context','cells',String(r.context.cells.indexOf(cell)),'transaction_info'],'Origin');
         row.append(el('p','Edits affect this shared resolved cell wherever referenced. Removing a dep does not delete context. Dep-group membership bytes are never rewritten automatically.','hint'));
         button(`Remove cell dep ${i+1}`,()=>commit(q=>{q.transaction.cell_deps.splice(i,1);selection='deps';}),row);

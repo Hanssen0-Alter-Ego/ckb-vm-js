@@ -7,16 +7,19 @@ const limit = 2 * 1024 * 1024;
 let active;
 let loading = false;
 let dirty = false;
+let loadedSample = null;
+let sourceName = 'None';
+function showSource() { $('loaded-source').textContent = `Current request: ${sourceName}${dirty ? ' (edited)' : ''}`; }
 const size = (text) => new TextEncoder().encode(text).length;
 const workbench = createWorkbench($('workbench'), {
   read: () => readRequest($('request').value),
   write(request) { $('request').value = stringifyLossless(request); markEdited(); },
   edited: markEdited,
-  capture: () => ({ text: $('request').value, dirty }),
-  restore(saved) { $('request').value = saved.text; markEdited(); dirty = saved.dirty; },
+  capture: () => ({ text: $('request').value, dirty, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden }),
+  restore(saved) { $('request').value = saved.text; dirty = saved.dirty; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; showSource(); },
 });
 function markEdited() {
-  dirty = true;
+  dirty = true; showSource();
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
   $('result').textContent = 'Previous output cleared because the input changed.';
   $('explanation').textContent = 'No verification has run for this input.';
@@ -40,12 +43,13 @@ function readRequest(text) {
 function busy(value) {
   workbench.setBusy(value);
   for (const id of ['run', 'load', 'sample', 'upload', 'request']) $(id).disabled = value;
+  $('load').disabled = value || !$('sample').value;
   $('cancel').disabled = !value || loading;
   $('cancel').hidden = !value || loading;
 }
 async function loadSample(initial = false) {
   if (active || loading) return;
-  if (!initial && dirty && !confirm('Replace your edited transaction with this example? Export JSON first if you want to keep it.')) return;
+  if (!initial && dirty && !confirm('Replace your edited transaction with this example? Export JSON first if you want to keep it.')) { $('sample').value = loadedSample ?? ''; $('load').disabled = !$('sample').value; return; }
   loading = true; busy(true); clearOutput(); status('Loading sample');
   try {
     const response = await fetch(new URL(`./fixtures/${$('sample').value}.json`, import.meta.url));
@@ -56,11 +60,12 @@ async function loadSample(initial = false) {
     $('explanation').textContent = 'No verification has run for this input.';
     $('result').textContent = 'No verification has run for this input.';
     $('summary').textContent = 'Synthetic fixture loaded. Inspect the supplied consensus before running.';
-    dirty = false; status('Ready');
-  } catch (error) { fail(error, 'Sample error'); }
+    loadedSample = $('sample').value; sourceName = $('sample').selectedOptions[0]?.textContent ?? 'Example'; dirty = false; showSource(); status('Ready');
+  } catch (error) { $('sample').value = loadedSample ?? ''; fail(error, 'Sample error'); }
   finally { loading = false; workbench.refresh(true); busy(false); }
 }
 $('load').addEventListener('click', () => loadSample());
+$('sample').addEventListener('change', () => { $('load').disabled = !$('sample').value; });
 $('upload').addEventListener('change', async (event) => {
   const file = event.target.files[0]; if (!file || active) return;
   if (dirty && !confirm('Replace your edited transaction with this file? Export JSON first if you want to keep it.')) { event.target.value = ''; return; }
@@ -70,13 +75,13 @@ $('upload').addEventListener('change', async (event) => {
     const request = readRequest(await file.text());
     $('advanced').open = false; $('explanation').textContent = 'Imported data has not been verified.';
     $('request').value = stringifyLossless(request);
-    workbench.refresh(true); dirty = false; status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
+    workbench.refresh(true); dirty = false; loadedSample = null; sourceName = 'Imported JSON'; $('sample').value = ''; $('load').disabled = true; showSource(); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
     $('result').textContent = 'No verification has run for this input.';
   } catch (error) { fail(error); }
   event.target.value = '';
 });
 $('request').addEventListener('input', () => {
-  dirty = true;
+  dirty = true; showSource();
   workbench.refresh(true);
   $('explanation').textContent = 'Input changed. The previous result no longer applies.';
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';

@@ -155,6 +155,25 @@ export function mutateCellList(request, kind, action, index = 0) {
   return result;
 }
 
+/** Explicitly relabel a resolved dependency cell and its references. Unknown fields survive. */
+export function changeDependencyReference(request, index, point) {
+  const next = structuredClone(request);
+  const dep = next.transaction?.cell_deps?.[index];
+  if (!object(dep?.out_point) || !object(point) || typeof point.tx_hash !== 'string' || typeof point.index !== 'string') throw new Error('A dependency reference requires an object with hash and index fields.');
+  const newKey = key(point);
+  if (newKey === null || BigInt(point.index) > 0xffffffffn) throw new Error('Enter a 32-byte transaction hash and an unsigned 32-bit RPC hex index.');
+  const oldKey = key(dep.out_point);
+  const cell = resolveCell(next, dep.out_point);
+  if (cell && next.context.cells.some(other => other !== cell && key(other?.out_point) === newKey)) throw new Error('Another resolved cell already uses this reference. Choose a unique reference.');
+  const update = target => { target.tx_hash = point.tx_hash; target.index = point.index; };
+  if (cell && oldKey !== null) {
+    for (const input of Array.isArray(next.transaction.inputs) ? next.transaction.inputs : []) if (key(input?.previous_output) === oldKey) update(input.previous_output);
+    for (const item of Array.isArray(next.transaction.cell_deps) ? next.transaction.cell_deps : []) if (key(item?.out_point) === oldKey) update(item.out_point);
+    update(cell.out_point);
+  } else update(dep.out_point);
+  return next;
+}
+
 /** UI-only decimal editing: never round RPC quantities through Number. */
 export function decimalToRpc(value, bits = 64) {
   if(typeof value !== 'string' || !/^[0-9]+$/.test(value)) throw new Error('Enter a non-negative whole decimal number.');

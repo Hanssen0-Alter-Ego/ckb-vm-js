@@ -107,3 +107,16 @@ test('import asks before replacing edited JSON',async({page})=>{
  await ready(page);await page.locator('#advanced summary').click();const input=page.locator('#request');const before=(await input.inputValue()).replace(/^\s*\{/, '{"keep":9007199254740993,');await input.fill(before);
  page.once('dialog',dialog=>dialog.dismiss());await page.locator('#upload').setInputFiles({name:'transaction.json',mimeType:'application/json',buffer:Buffer.from('{"transaction":{},"context":{"cells":[]}}')});expect(await input.inputValue()).toBe(before);
 });
+
+test('cancel restores ready status and prior verification result',async({page})=>{
+ await ready(page);await edit(page,'input');await page.getByLabel('Input 1 capacity (CKB)',{exact:true}).fill('999');await page.getByRole('button',{name:'Cancel changes'}).click();await expect(page.locator('#status')).toHaveText('Ready');
+ await page.getByRole('button',{name:'Run verification'}).click();await expect(page.locator('#status')).toHaveText('Passed snapshot');const prior=await page.locator('#result').textContent();await edit(page,'input');await page.getByLabel('Input 1 capacity (CKB)',{exact:true}).fill('999');await page.keyboard.press('Escape');await expect(page.locator('#status')).toHaveText('Passed snapshot');expect(await page.locator('#result').textContent()).toBe(prior);await expect(page.locator('.output')).toBeVisible();
+});
+
+test('cancelled example replacement restores selected example and identifies the current request',async({page})=>{
+ await ready(page);await edit(page,'output');await page.getByLabel('Output 1 capacity (CKB)',{exact:true}).fill('999');await done(page);await page.locator('.example-menu summary').click();await expect(page.locator('#loaded-source')).toHaveText('Current request: Valid transaction (edited)');await page.locator('#sample').selectOption('script-failure');page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('button',{name:'Load sample'}).click();await expect(page.locator('#sample')).toHaveValue('submitted-valid');await expect(page.locator('#loaded-source')).toHaveText('Current request: Valid transaction (edited)');await expect(page.locator('#status')).toHaveText('Edited');
+});
+
+test('new dependency reference is editable and applied to its resolved cell',async({page})=>{
+ await ready(page);await page.getByRole('button',{name:'Manage cell deps'}).click();await page.getByRole('button',{name:'New resolved cell'}).click();await page.getByText('Reference & origin',{exact:true}).click();const hash=page.getByLabel('Cell dep 2 transaction hash',{exact:true});const index=page.getByLabel('Cell dep 2 output index (RPC hex)',{exact:true});await hash.fill(`0x${'ab'.repeat(32)}`);await index.fill('0x2');await done(page);await expect(page.locator('dialog')).toBeVisible();await page.getByRole('button',{name:'Apply reference'}).click();await done(page);const r=JSON.parse(await page.locator('#request').inputValue());expect(r.transaction.cell_deps[1].out_point).toEqual({tx_hash:`0x${'ab'.repeat(32)}`,index:'0x2'});expect(r.context.cells.at(-1).out_point).toEqual(r.transaction.cell_deps[1].out_point);
+});
