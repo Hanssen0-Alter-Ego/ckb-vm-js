@@ -67,3 +67,24 @@ The `Browser playground` Actions workflow rebuilds and tests WASM and the page
 before uploading a Pages artifact, then deploys only `main`. Repository Pages
 must use GitHub Actions as its build source. This workflow is independent of npm
 publication and does not publish a package or change repository access.
+
+## Transaction workbench
+
+The structured editor and advanced JSON share one request. Edit input/output
+capacity and data, reuse or customize lock/type scripts, choose supplied cells as
+code dependencies, edit witnesses, and select transaction or script-group scope.
+JSON-only extension fields are retained when a structured field changes. Invalid
+JSON remains in the editor; malformed entries are diagnosed rather than repaired.
+
+Add/copy input creates a **synthetic unconfirmed cell**, not a live-chain input.
+Input removal/reordering does not guess witness associations or remove context
+cells. Adjust witnesses explicitly. Output operations keep corresponding data
+aligned and refuse mismatched arrays. Capacity arithmetic uses integer shannons;
+the displayed difference is not a validated fee. Dependency selection does not
+infer code hashes, load binaries, or expand dep groups. Preflight hints do not
+replace running the verifier. Arbitrary context remains editable through JSON.
+
+The workbench is static frontend code under `web/`, copied only by the site build.
+It adds no core API or npm dependencies and is excluded by the package's explicit
+`files` allowlist. Model regression tests run with `npm test`; UI scenarios are
+included in `npm run test:browser` and require the generated WASM artifacts.
