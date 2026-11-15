@@ -52,7 +52,7 @@ async function loadSample() {
     $('summary').textContent = 'Synthetic fixture loaded. Inspect the supplied consensus before running.';
     status('Ready');
   } catch (error) { fail(error, 'Sample error'); }
-  finally { loading = false; workbench.refresh(); busy(false); }
+  finally { loading = false; workbench.refresh(true); busy(false); }
 }
 $('load').addEventListener('click', () => loadSample());
 $('upload').addEventListener('change', async (event) => {
@@ -63,13 +63,13 @@ $('upload').addEventListener('change', async (event) => {
     const request = readRequest(await file.text());
     $('advanced').open = false; $('explanation').textContent = 'Imported data has not been verified.';
     $('request').value = JSON.stringify(request, null, 2);
-    workbench.refresh(); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
+    workbench.refresh(true); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
     $('result').textContent = 'No verification has run for this input.';
   } catch (error) { fail(error); }
   event.target.value = '';
 });
 $('request').addEventListener('input', () => {
-  workbench.refresh();
+  workbench.refresh(true);
   $('explanation').textContent = 'Input changed. The previous result no longer applies.';
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
   $('result').textContent = 'Previous output cleared because the input changed.';

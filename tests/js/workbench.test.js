@@ -124,3 +124,18 @@ test('workbench capacities cover the full unsigned 64-bit range', async () => {
   assert.equal(ckbToHex(ckb('0xffffffffffffffff')), '0xffffffffffffffff');
   assert.throws(() => ckbToHex('184467440737.09551616'), /too large/);
 });
+
+test('decimal RPC editing retains uint64 precision and rejects partial/overflow drafts',async()=>{
+ const {decimalToRpc,rpcToDecimal}=await import('../../web/workbench-model.js');
+ for(const n of ['0','10000000','9007199254740993','18446744073709551615'])assert.equal(rpcToDecimal(decimalToRpc(n)),n);
+ for(const n of ['','-1','1.2','1e4',' 2','18446744073709551616'])assert.throws(()=>decimalToRpc(n));
+ assert.equal(rpcToDecimal('bad'),'bad');
+});
+test('independent code-cell creation needs no input and preserves existing references',async()=>{
+ const {addDependencyCell}=await import('../../web/workbench-model.js');let r=request();r.transaction.inputs=[];r.transaction.outputs=[];r.transaction.outputs_data=[];r.context.cells=[];r.transaction.cell_deps=[];r.unknown={keep:true};
+ const next=addDependencyCell(r);assert.equal(next.transaction.inputs.length,0);assert.equal(next.context.cells.length,1);assert.equal(next.context.cells[0].transaction_info,null);assert.deepEqual(next.transaction.cell_deps[0].out_point,next.context.cells[0].out_point);assert.deepEqual(next.unknown,r.unknown);assert.deepEqual(r.context.cells,[]);
+});
+
+test('script names are pinned to fixture code references, not guessed hash types',async()=>{
+ const {scriptName}=await import('../../web/workbench-model.js');assert.equal(scriptName(request().transaction.outputs[0].lock),'Always success');const failure=JSON.parse(await readFile(new URL('../../fixtures/script-failure.json',import.meta.url),'utf8')).request;assert.equal(scriptName(failure.transaction.outputs[0].lock),'Always failure');assert.match(scriptName({...request().transaction.outputs[0].lock,hash_type:'type'}),/Custom \/ Unknown/);assert.match(scriptName({code_hash:'0x1234',hash_type:'data2'}),/Custom \/ Unknown 1234/);
+});

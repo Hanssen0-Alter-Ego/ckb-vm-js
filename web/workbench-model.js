@@ -154,3 +154,33 @@ export function mutateCellList(request, kind, action, index = 0) {
   }
   return result;
 }
+
+/** UI-only decimal editing: never round RPC quantities through Number. */
+export function decimalToRpc(value, bits = 64) {
+  if(typeof value !== 'string' || !/^[0-9]+$/.test(value)) throw new Error('Enter a non-negative whole decimal number.');
+  const n=BigInt(value);
+  if(n >= (1n << BigInt(bits))) throw new Error(`Value exceeds unsigned ${bits}-bit range.`);
+  return `0x${n.toString(16)}`;
+}
+export function rpcToDecimal(value) {
+  return typeof value==='string' && /^0x[0-9a-f]+$/i.test(value) ? BigInt(value).toString(10) : typeof value==='string' ? value : '';
+}
+
+/** Create an independent, explicitly synthetic resolved code cell; never add an input. */
+export function addDependencyCell(request) {
+  if(!Array.isArray(request?.context?.cells)||!Array.isArray(request?.transaction?.cell_deps)||!Array.isArray(request?.transaction?.inputs)) throw new Error('Resolved cells, cell deps and inputs must be arrays; repair malformed structure in JSON.');
+  const next=structuredClone(request);const out_point=freshOutPoint(next);
+  const cell={out_point,output:{capacity:'0x0',lock:{code_hash:`0x${'0'.repeat(64)}`,hash_type:'data2',args:'0x'},type:null},data:'0x',transaction_info:null};
+  next.context.cells.push(cell);next.transaction.cell_deps.push({out_point:structuredClone(out_point),dep_type:'code'});return next;
+}
+
+/** Names are pinned to code hashes generated from upstream fixture binaries.
+ * See crates/verifier/src/test_support.rs; this names a reference, not a verified execution. */
+export function scriptName(script){
+  const known={
+    '0x28e83a1277d48add8e72fadaa9248559e1b632bab2bd60b27955ebc4c03800a5':'Always success',
+    '0x342083c9f5e8f9bb866cb0ff1eafed2e29cfc7edd81e3e274c7b3b86a0fc519f':'Always failure',
+  };
+  const hash=typeof script?.code_hash==='string'?script.code_hash.toLowerCase():'';
+  return script?.hash_type==='data2'&&known[hash]?known[hash]:`Custom / Unknown ${hash?hash.slice(2,8):'?'}`;
+}
