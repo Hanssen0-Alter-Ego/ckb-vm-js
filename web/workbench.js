@@ -62,8 +62,9 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     script(parent,`${title} type`,cell.output.type,getOutput,'type',request);
     field(parent,`${title} data (hex)`,cell.data,setData,{area:true});
   }
+  function identityKey(point){return point&&typeof point.tx_hash==='string'&&typeof point.index==='string'?`${point.tx_hash.toLowerCase()}:${point.index.toLowerCase()}`:null;}
   function resolvedIdentity(point){
-    const key=point&&typeof point.tx_hash==='string'&&typeof point.index==='string'?`${point.tx_hash.toLowerCase()}:${point.index.toLowerCase()}`:null;
+    const key=identityKey(point);
     if(!key)return 'Unresolved';if(!resolvedIds.has(key))resolvedIds.set(key,`C${nextIdentity++}`);return resolvedIds.get(key);
   }
   function scriptMarker(value){
@@ -152,7 +153,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
           const refField=(label,value)=>{const wrap=el('label',label,'wb-field');const input=el('input');input.value=typeof value==='string'?value:'';input.setAttribute('aria-label',label);input.spellcheck=false;wrap.append(input);ref.append(wrap);return input;};
           const hash=refField(`Cell dep ${i+1} transaction hash`,dep.out_point.tx_hash);const index=refField(`Cell dep ${i+1} output index (RPC hex)`,dep.out_point.index);
           const initialHash=hash.value, initialIndex=index.value;const pending=()=>{const message=hash.value!==initialHash||index.value!==initialIndex?'Apply the reference or cancel changes before saving.':'';hash.setCustomValidity(message);index.setCustomValidity(message);};hash.oninput=pending;index.oninput=pending;
-          const apply=el('button','Apply reference','secondary');apply.type='button';apply.onclick=()=>{const bad=[...root.querySelectorAll('input,textarea,select')].find(n=>n!==hash&&n!==index&&!n.checkValidity());if(bad){bad.reportValidity();return;}try{write(changeDependencyReference(read(),i,{tx_hash:hash.value,index:index.value}));refresh();}catch(e){error.textContent=e.message;}};ref.append(apply);
+          const apply=el('button','Apply reference','secondary');apply.type='button';apply.onclick=()=>{const bad=[...root.querySelectorAll('input,textarea,select')].find(n=>n!==hash&&n!==index&&!n.checkValidity());if(bad){bad.reportValidity();return;}try{const point={tx_hash:hash.value,index:index.value};const identity=cell?resolvedIdentity(dep.out_point):null;write(changeDependencyReference(read(),i,point));if(identity){resolvedIds.delete(identityKey(dep.out_point));resolvedIds.set(identityKey(point),identity);}refresh();}catch(e){error.textContent=e.message;}};ref.append(apply);
         } else ref.append(el('p','Reference is not an object; repair this malformed value in JSON.','wb-error'));
         if(cell)structuredFields(ref,cell.transaction_info,['context','cells',String(r.context.cells.indexOf(cell)),'transaction_info'],'Origin');
         row.append(el('p','Edits affect this shared resolved cell wherever referenced. Removing a dep does not delete context. Dep-group membership bytes are never rewritten automatically.','hint'));
@@ -226,7 +227,10 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       if(!Array.isArray(list)) column.append(el('p',`${kind} must be an array. Open JSON to repair.`, 'wb-error'));
       const items=Array.isArray(list)?list:[];
       cards.forEach((editor,i)=> {
-        const key=`${kind}:${i}`; editors.set(key,[`${kind==='inputs'?'Input':'Output'} ${i+1}`,editor]);
+        const key=`${kind}:${i}`, name=kind==='inputs'?'Input':'Output', identity=identities[kind][i];
+        editors.set(key,[`${name} ${i+1} · ${identity} · index ${i}`,editor]);
+        const editorMoves=editor.querySelectorAll('.wb-tools button');
+        for(const [offset,action] of [[1,'up'],[2,'down']]){const move=editorMoves[offset];if(!move)continue;move.setAttribute('aria-label',`Move ${identity} ${action} · ${name.toLowerCase()} index ${i}`);move.dataset.boundary=String(action==='up'?i===0:i===items.length-1);move.disabled=disabled||move.dataset.boundary==='true';}
         const cell=kind==='inputs'?resolveCell(r,items[i]?.previous_output):{output:items[i],data:r.transaction.outputs_data?.[i]};
         const b=cellPreview(cell,identities[kind][i],i,kind==='inputs'?'IN':'OUT',r,()=>open(key,b));
         b.setAttribute('aria-label',`Edit ${kind==='inputs'?'input':'output'} ${i+1}`);
@@ -247,7 +251,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     const depRail=el('div',undefined,'dep-rail'); depRail.append(el('span','Cell deps','rail-label'));rail.append(depRail);
     const depCards=[...deps.querySelectorAll(':scope > .wb-card')];
     depCards.forEach((editor,i)=>{
-      const key=`dep:${i}`;editors.set(key,[`Cell dep ${i+1}`,editor]);
+      const key=`dep:${i}`;editors.set(key,[`Cell dep ${i+1} · ${resolvedIdentity(r.transaction.cell_deps[i]?.out_point)} · index ${i}`,editor]);
       const kind=r.transaction.cell_deps[i]?.dep_type;const b=el('button',`${i+1} · ${kind??'invalid'}`,'dep-dot dep-kind'); b.type='button';b.disabled=disabled;
       const identity=JSON.stringify(r.transaction.cell_deps[i]?.out_point??i);const color=[...identity].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0)%6;
       b.style.setProperty('--dot', ['#a8d98d','#9db7ff','#ffcb86','#dca8eb','#82d5ca','#eea1ad'][color]);if(r.transaction.cell_deps[i]?.dep_type==='dep_group')b.classList.add('dep-group');
@@ -309,7 +313,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       const top=el('div',undefined,'inspector-heading');const title=el('h2',entry[0]);title.id='inspector-title';top.append(title);
       const close=el('button','Save','secondary');close.type='button';close.onclick=()=>finish();top.append(close);const discard=el('button','Cancel changes','secondary discard-draft');discard.type='button';discard.onclick=()=>finish(true);top.append(discard);dialog.append(top,el('p','Save keeps changes. Cancel restores the request from when this editor was opened.','hint'),error,entry[1]);
       dialog.querySelectorAll('[data-default-open]').forEach(d=>{d.open=true;});
-      dialog.querySelectorAll('input,select,textarea,button').forEach(n=>{n.disabled=disabled;});
+      dialog.querySelectorAll('input,select,textarea,button').forEach(n=>{n.disabled=disabled||n.dataset.boundary==='true';});
       if(!dialog.open)dialog.showModal();
     }
     function returnFocus(){
