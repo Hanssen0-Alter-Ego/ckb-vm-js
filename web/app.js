@@ -14,14 +14,17 @@ let loadedSample = null;
 let sourceName = 'None';
 // A fresh key per document prevents concurrent tabs (including duplicated tabs) from overwriting each other.
 const draftPrefix = 'ckb-vm-js:draft:';
-const draftKey = `${draftPrefix}v1:${crypto.randomUUID()}`;
+let draftKey = `${draftPrefix}v1:${crypto.randomUUID()}`;
 let draftAvailable = false;
 let draftFailure = false;
 let draftLost = false;
+let editorSessionOpen = false;
 function draftStatus(message) { if ($('draft-status').textContent !== message) $('draft-status').textContent = message; }
 function persistDraft() {
   try {
     const record = { version: 1, text: $('request').value, source: sourceName, sample: loadedSample, time: new Date().toISOString() };
+    // Preserve a record changed by another tab instead of overwriting it.
+    if (draftLost && localStorage.getItem(draftKey) !== null) draftKey = `${draftPrefix}v1:${crypto.randomUUID()}`;
     localStorage.setItem(draftKey, JSON.stringify(record));
     draftAvailable = true; draftFailure = false; draftLost = false; $('save-local-draft').hidden = true;
     draftStatus('Applied request saved locally. Unapplied editor fields are not saved.');
@@ -91,14 +94,16 @@ function showSource() { $('loaded-source').textContent = `Current request: ${sou
 const size = (text) => new TextEncoder().encode(text).length;
 const workbench = createWorkbench($('workbench'), {
   read: () => readRequest($('request').value),
-  write(request) { $('request').value = stringifyLossless(request); markEdited(); },
-  edited: markEdited,
+  write(request) { checkCurrentDraft(); $('request').value = stringifyLossless(request); markEdited(); },
+  edited() { checkCurrentDraft(); markEdited(); },
+  beginSession() { checkCurrentDraft(); editorSessionOpen = true; },
+  endSession(discard, changed) { editorSessionOpen = false; if (!discard && changed && draftLost) persistDraft(); },
   capture: () => ({ text: $('request').value, dirty, unsaved, exportRequested, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, requestedScope: $('requested-scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden, groupTitle: $('group-title').textContent, groupMembers: $('group-members').textContent, groupHidden: $('group-details').hidden, groupOpen: $('group-details').open }),
   restore(saved) { checkCurrentDraft(); $('request').value = saved.text; dirty = saved.dirty; unsaved = saved.unsaved; exportRequested = saved.exportRequested; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; $('requested-scope').textContent = saved.requestedScope; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; try{renderRepairs(JSON.parse(saved.result),readRequest(saved.text));}catch{hideRepairs();} showSource(); if (!draftLost) persistDraft(); },
 });
 window.addEventListener('beforeunload', event => { checkCurrentDraft(); if(unsaved||draftLost||workbench.hasPendingDraft()){event.preventDefault();event.returnValue='';} });
 function markEdited() {
-  dirty = true; unsaved = true; exportRequested = false; showSource(); persistDraft();
+  dirty = true; unsaved = true; exportRequested = false; showSource(); if (!(editorSessionOpen && draftLost)) persistDraft();
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
   $('result').textContent = 'Previous output cleared because the input changed.';
   $('explanation').textContent = 'No verification has run for this input.';

@@ -7,6 +7,10 @@ test('project Pages path loads real WASM and supports repeat, rejection and reco
   page.on('response', response => { if (response.url().endsWith('.wasm')) wasm.push([response.url(), response.status()]); });
   await page.goto('/ckb-vm-js/');
   await expect(page.locator('#status')).toHaveText('Ready');
+  for (const path of ['fixtures/submitted-valid.json','fixtures/selected-lock.json','fixtures/script-failure.json','fixtures/valid.json','worker.js','pkg/ckb_wasm_verifier.js','pkg/ckb_wasm_verifier_bg.wasm']) {
+    const response = await page.request.get(`/ckb-vm-js/${path}`);
+    expect(response.status(), path).toBe(200);
+  }
   for (let i = 0; i < 2; i++) {
     await page.getByRole('button', { name: 'Run verification' }).click();
     await expect(page.locator('#status')).toHaveText('Passed snapshot');

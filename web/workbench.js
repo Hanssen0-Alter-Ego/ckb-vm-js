@@ -5,7 +5,7 @@ import { ckb, ckbToHex } from './guided.js';
 import { resolveCell, scriptChoices, scriptGroupCandidates, inspectRequest, diagnosticMatchesCell, mutateCellList, decimalToRpc, rpcToDecimal, addDependencyCell, changeDependencyReference, changeInputReference, scriptName } from './workbench-model.js';
 
 // The JSON request is the source of truth. Each edit changes only its target field.
-export function createWorkbench(root, { read, write, edited, capture, restore }) {
+export function createWorkbench(root, { read, write, edited, capture, restore, beginSession = () => {}, endSession = () => {} }) {
   let disabled = false;
   let selection = null;
   let sessionBaseline = null;
@@ -421,7 +421,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       const enteringDep=selection==='deps'&&/^dep:[0-9]+$/.test(key)&&!!trigger;
       if(enteringDep)beginDepEdit(Number(key.split(':')[1]));
       else if(trigger)restoreFocus=trigger.getAttribute('aria-label');
-      if(sessionBaseline===null)sessionBaseline=captureState();
+      if(sessionBaseline===null){beginSession();sessionBaseline=captureState();}
       selection=key;dialog.dataset.editor=key;
       const entry=editors.get(key);if(!entry){selection=null;return;}
       // Return dependency editors to their management container before switching.
@@ -447,7 +447,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       const header=/^(?:Open header dep index ([0-9]+)|Header dep index ([0-9]+) · open details)$/.exec(restoreFocus);if(!target&&header){const index=header[1]??header[2];target=nodes.find(n=>n.getAttribute('aria-label')===`Header dep index ${index} · open details`)??nodes.find(n=>n.getAttribute('aria-label')==='Manage header deps');}
       if(!target)target=nodes.find(n=>n.getAttribute('aria-label')==='Manage cell deps');target?.focus();
     }
-    function finish(discard=false){if(!discard&&!valid())return;if(depSubsession&&/^dep:[0-9]+$/.test(selection)){returnToDeps(discard);return;}selection=null;if(discard)dialog.querySelectorAll('input,textarea,select').forEach(n=>{n.onchange=null;});dialog.close();if(discard&&sessionBaseline!==null)restoreState(sessionBaseline);if(!discard&&duplicateFocus)restoreFocus=duplicateFocus;sessionBaseline=null;depSubsession=null;duplicateNotice=null;duplicateFocus=null;orderNotice=null;refresh();returnFocus();}
+    function finish(discard=false){if(!discard&&!valid())return;if(depSubsession&&/^dep:[0-9]+$/.test(selection)){returnToDeps(discard);return;}selection=null;if(discard)dialog.querySelectorAll('input,textarea,select').forEach(n=>{n.onchange=null;});dialog.close();if(discard&&sessionBaseline!==null)restoreState(sessionBaseline);endSession(discard,sessionBaseline!==null&&capture().text!==sessionBaseline.request.text);if(!discard&&duplicateFocus)restoreFocus=duplicateFocus;sessionBaseline=null;depSubsession=null;duplicateNotice=null;duplicateFocus=null;orderNotice=null;refresh();returnFocus();}
     dialog.addEventListener('cancel',e=>{e.preventDefault();const draft=dialog.querySelector('.header-draft');if(draft)draft.back();else finish(true);});
     if(selection)open(selection);
   }
