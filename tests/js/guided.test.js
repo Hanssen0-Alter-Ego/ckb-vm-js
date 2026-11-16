@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ckbToHex, ckb, guidedRequest, explain, verifiedGroupSummary } from '../../web/guided.js';
+import { ckbToHex, ckb, guidedRequest, explain, verifiedGroupSummary, requestedScope } from '../../web/guided.js';
 test('guided CKB decimals are lossless beyond Number safe integer range', () => {
   for (const value of ['0', '0.00000001', '999.00000001']) {
     assert.equal(ckb(ckbToHex(value)), value);
@@ -49,4 +49,25 @@ test('verified group display filters both type and hash, and refuses unavailable
 
 test('missing selected script group gives actionable guidance',()=>{
  const result={ok:false,error:{code:'Script',message:'ScriptNotFound: code_hash: Byte32(0x'+'00'.repeat(32)+')'}};assert.match(explain(result),/choose a listed group/i);assert.match(explain(result),/not the code hash/i);assert.match(explain({...result,error:{code:'Other',message:result.error.message}}),/Full engine response/);
+});
+
+
+test('requested scope is reported independently of engine success',()=>{
+ const hash=`0x${'ab'.repeat(32)}`;
+ assert.equal(requestedScope({}),'Full transaction');
+ assert.equal(requestedScope({script_group:null}),'Full transaction');
+ assert.equal(requestedScope({script_group:{group_type:'lock',script_hash:hash}}),`Lock script group — script hash: ${hash}`);
+ assert.equal(requestedScope({script_group:{group_type:'type',script_hash:'0x12'}}),'Type script group — script hash: 0x12');
+ assert.match(requestedScope({script_group:[]}),/Invalid script group/);
+ assert.match(requestedScope({script_group:{group_type:'other'}}),/Unrecognized.*missing/);
+});
+
+test('invalid request length explanation reports only the engine-provided detail',()=>{
+ const message='invalid length 2, expected a 0x-prefixed hex string with 64 digits at line 1 column 3485';
+ const result={ok:false,error:{code:'InvalidRequest',message}};
+ assert.match(explain(result),/2 hex digits.*64 \(32 bytes\)/);
+ assert.match(explain(result),/did not identify the field/);
+ assert.doesNotMatch(explain(result),/script hash/i);
+ assert.doesNotMatch(explain({...result,error:{...result.error,code:'Other'}}),/2 hex digits/);
+ assert.doesNotMatch(explain({...result,error:{...result.error,message:message.replace('64 digits','40 digits')}}),/2 hex digits/);
 });

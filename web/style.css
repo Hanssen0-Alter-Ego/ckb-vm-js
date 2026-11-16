@@ -36,3 +36,5 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 #group-details{border-top:1px solid var(--line);margin-top:12px}#group-details summary{font-size:13px}#group-members{white-space:pre-line;overflow-wrap:anywhere;color:#d4dfcd;margin:0 0 8px}
 
 .list-tools button{font-size:19px;font-weight:700;line-height:1;color:#e3eade}.list-tools button:disabled{color:#899585;opacity:.55}
+
+.requested-scope{margin:16px 0 0!important;overflow-wrap:anywhere}.requested-scope span{display:block;color:var(--muted);font-size:11px;margin-bottom:5px}.requested-scope strong{font-size:12px;font-weight:500}

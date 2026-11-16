@@ -19,6 +19,17 @@ export function guidedRequest(base, amount, budget) {
   request.max_cycles = `0x${BigInt(budget).toString(16)}`;
   return request;
 }
+/** Describe the supplied request, without implying that the engine accepted it. */
+export function requestedScope(request) {
+  const choice = request?.script_group;
+  if (choice == null) return 'Full transaction';
+  if (typeof choice !== 'object' || Array.isArray(choice)) return 'Invalid script group in request; see JSON request.';
+  const kind = choice.group_type === 'lock' ? 'Lock' : choice.group_type === 'type' ? 'Type' : 'Unrecognized';
+  const hash = typeof choice.script_hash === 'string' ? choice.script_hash : '(missing or non-text value)';
+  const shown = hash.length > 130 ? `${hash.slice(0, 130)}…` : hash;
+  return `${kind} script group — script hash: ${shown}`;
+}
+
 /** Describe only groups confirmed by a successful engine result. */
 export function verifiedGroupSummary(result, request) {
   if (result?.ok !== true || !['script_group','transaction'].includes(result.scope)) return null;
@@ -42,6 +53,9 @@ export function explain(result, request) {
     return 'The engine did not report the verification scope. See Full engine response.';
   }
   const error = `${result.error?.code ?? ''} ${result.error?.message ?? ''}`;
+  const badLength = result.error?.code === 'InvalidRequest' && /^invalid length ([0-9]+), expected a 0x-prefixed hex string with 64 digits(?: at line [0-9]+ column [0-9]+)?$/.exec(result.error?.message ?? '');
+  if (badLength) return `A value has ${badLength[1]} hex digits; it must have 64 (32 bytes), after the 0x prefix. The engine did not identify the field. Check the request and open Full engine response for the original error.`;
+
   if(result.error?.code==='Script' && /^ScriptNotFound\b/.test(result.error?.message ?? ''))return 'The selected script group was not found in this snapshot. Open Settings → Verification scope and choose a listed group, or enter the full script hash (not the code hash). Check the group kind and supplied cells.';
   const missingExtension=result.error?.code==='MissingContext' && /^explicit extension data or null required for (0x[0-9a-f]{64})$/i.exec(result.error?.message ?? '');
   if(missingExtension){
