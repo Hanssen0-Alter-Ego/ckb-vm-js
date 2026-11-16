@@ -33,7 +33,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     };
     wrap.append(input); parent.append(wrap); return input;
   }
-  function valid() { const bad = [...root.querySelectorAll('input,textarea,select')].find(n => !n.checkValidity()); if (bad) { bad.reportValidity(); return false; } return true; }
+  function valid() { const pending=root.querySelector('.header-draft[data-pending="true"]');if(pending){error.textContent='Apply or cancel the header draft before saving.';pending.querySelector('input')?.focus();return false;}const bad = [...root.querySelectorAll('input,textarea,select')].find(n => !n.checkValidity()); if (bad) { bad.reportValidity(); return false; } return true; }
   function updateDraftControl(){}
   let error;
   function script(parent, title, value, getOutput, key, request) {
@@ -296,7 +296,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       const preview=el('p','','hint');const problem=el('p','','wb-error');problem.setAttribute('role','alert');form.append(preview,problem);
       const first=controls.values().next().value;let pending=replaceIndex===null;
       function draftValues(base){const header=structuredClone(base&&typeof base==='object'&&!Array.isArray(base)?base:{});for(const [key,input] of controls)header[key]=input.value;return header;}
-      function updatePreview(){try{preview.textContent=`Computed locally: ${headerHash(draftValues(template))}. This does not authenticate the header or check its epoch.`;}catch(e){preview.textContent=`Cannot calculate hash: ${e.message}`;}first.setCustomValidity(pending?'Apply or cancel the header draft before saving.':'');}
+      function updatePreview(){try{preview.textContent=`Computed locally: ${headerHash(draftValues(template))}. This does not authenticate the header or check its epoch.`;}catch(e){preview.textContent=`Cannot calculate hash: ${e.message}`;}form.dataset.pending=String(pending);}
       for(const input of controls.values())input.oninput=()=>{pending=true;updatePreview();};extension.onchange=()=>{pending=true;extensionWrap.hidden=extension.value!=='bytes';updatePreview();};extensionData.oninput=()=>{pending=true;updatePreview();};updatePreview();
       form.append(el('p',Object.hasOwn(template??{},'hash')?'The supplied hash field is retained unchanged; this dependency uses the newly computed hash. The verifier may reject extra fields.':'Other fields are retained. The verifier may reject unknown fields. Extension data is never assumed; choose an option only if you know it.','hint'));
       const actions=el('div',undefined,'header-draft-actions');form.append(actions);const apply=el('button','Apply header','secondary');apply.type='button';actions.append(apply);

@@ -163,7 +163,7 @@ test('a newly created header dependency and explicit extension reach real verifi
 });
 
 test('header editor remains usable on narrow screens',async({page})=>{
- await page.setViewportSize({width:400,height:844});await ready(page);await page.getByRole('button',{name:'Manage header deps'}).click();await page.getByRole('button',{name:'Create header'}).click();await expect(page.getByLabel('Header Block number (RPC hex)')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'test-results/header-mobile.png',fullPage:true});await page.getByRole('button',{name:'Cancel header draft'}).click();await done(page);
+ await page.setViewportSize({width:400,height:844});await ready(page);await page.getByRole('button',{name:'Manage header deps'}).click();await page.getByRole('button',{name:'Create header'}).click();await expect(page.getByLabel('Header Block number (RPC hex)')).toBeVisible();expect(await page.getByLabel('Header Version (RPC hex)').evaluate(e=>e.validity.valid)).toBe(true);await done(page);await expect(page.locator('dialog')).toBeVisible();await expect(page.locator('dialog > [role=alert]')).toContainText('Apply or cancel the header draft');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'test-results/header-mobile.png',fullPage:true});await page.getByRole('button',{name:'Cancel header draft'}).click();await done(page);
 });
 
 test('disclosures animate only when the browser and motion preference allow it',async({page})=>{
