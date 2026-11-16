@@ -415,6 +415,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       dialog.querySelectorAll('[data-default-open]').forEach(d=>{d.open=true;});
       dialog.querySelectorAll('input,select,textarea,button').forEach(n=>{n.disabled=disabled||n.dataset.boundary==='true';});
       if(!dialog.open)dialog.showModal();
+      if(trigger&&/^headers:[0-9]+$/.test(key)){title.tabIndex=-1;title.focus({preventScroll:true});}
     }
     function returnFocus(){
       if(!restoreFocus)return;const nodes=[...root.querySelectorAll('[aria-label]')];let target=nodes.find(n=>n.getAttribute('aria-label')===restoreFocus);
