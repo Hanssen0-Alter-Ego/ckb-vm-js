@@ -683,12 +683,11 @@ mod tests {
     }
     #[test]
     fn rpc_view_hashes_are_checked_without_weakening_strict_fields() {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../../fixtures/selected-lock.json"
-        ))
-        .unwrap();
+        let fixture: Value =
+            serde_json::from_str(include_str!("../../../fixtures/selected-lock.json")).unwrap();
         let request = fixture["request"].clone();
-        let transaction: rpc::Transaction = serde_json::from_value(request["transaction"].clone()).unwrap();
+        let transaction: rpc::Transaction =
+            serde_json::from_value(request["transaction"].clone()).unwrap();
         let tx_hash = packed::Transaction::from(transaction).into_view().hash();
         assert_eq!(
             hash_hex(&tx_hash),
@@ -710,7 +709,9 @@ mod tests {
         let header: rpc::Header = serde_json::from_value(extra.clone()).unwrap();
         extra["hash"] = json!(hash_hex(&packed::Header::from(header).into_view().hash()));
         hashed["context"]["headers"] = json!([extra]);
-        let result = |value: &Value| serde_json::from_str::<Value>(&verify_json(&value.to_string())).unwrap();
+        let result = |value: &Value| {
+            serde_json::from_str::<Value>(&verify_json(&value.to_string())).unwrap()
+        };
         assert_eq!(result(&request)["ok"], true);
         assert_eq!(result(&hashed)["ok"], true);
         for path in ["transaction", "tip_header", "candidate_header", "headers"] {
@@ -724,7 +725,13 @@ mod tests {
             value["hash"] = json!(format!("0x{}", "00".repeat(32)));
             let response = result(&changed);
             assert_eq!(response["error"]["code"], "InvalidRequest", "{path}");
-            assert!(response["error"]["message"].as_str().unwrap().contains("hash does not match"), "{path}");
+            assert!(
+                response["error"]["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("hash does not match"),
+                "{path}"
+            );
         }
         for field in ["transaction", "tip_header"] {
             let mut changed = request.clone();
@@ -734,7 +741,11 @@ mod tests {
                 &mut changed["context"]["tip_header"]
             };
             value["unexpected"] = json!("not allowed");
-            assert_eq!(result(&changed)["error"]["code"], "InvalidRequest", "{field}");
+            assert_eq!(
+                result(&changed)["error"]["code"],
+                "InvalidRequest",
+                "{field}"
+            );
             let mut changed = request.clone();
             let value = if field == "transaction" {
                 &mut changed["transaction"]
@@ -742,7 +753,11 @@ mod tests {
                 &mut changed["context"]["tip_header"]
             };
             value["hash"] = Value::Null;
-            assert_eq!(result(&changed)["error"]["code"], "InvalidRequest", "{field}");
+            assert_eq!(
+                result(&changed)["error"]["code"],
+                "InvalidRequest",
+                "{field}"
+            );
         }
     }
     #[test]
