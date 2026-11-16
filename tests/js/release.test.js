@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { releaseMetadata, parseVersion, compareVersions, checkRegistryMetadata, checkTarball, checkGitContext } from '../../scripts/release.mjs';
+import { releaseMetadata, parseVersion, compareVersions, checkRegistryMetadata, checkTarball, checkGitContext, checkRegistry, checkNoticeInventory } from '../../scripts/release.mjs';
 const pkg = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 const lock = JSON.parse(await readFile(new URL('../../package-lock.json', import.meta.url), 'utf8'));
 const meta = releaseMetadata(pkg, lock, `v${pkg.version}`);
@@ -75,4 +75,24 @@ test('git guard also rejects an actual unmerged local test tag', async () => {
     git(['tag', 'v1.0.1']);
     assert.throws(() => checkGitContext('v1.0.1', undefined, git));
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('public registry preflight fails closed on absent, denied, unavailable and invalid metadata', async () => {
+  for (const status of [404, 401, 403, 429, 500]) {
+    await assert.rejects(checkRegistry(meta, async () => ({ status, ok: false })),
+      status === 404 ? /bootstrap/ : /Registry read failed/);
+  }
+  await assert.rejects(checkRegistry(meta, async () => { throw new Error('network unavailable'); }), /network unavailable/);
+  await assert.rejects(checkRegistry(meta, async () => ({ ok: true, json: async () => ({}) })), /bootstrap/);
+  await checkRegistry(meta, async (url, options) => {
+    assert.equal(url, 'https://registry.npmjs.org/ckb-vm-js');
+    assert.ok(options.signal instanceof AbortSignal);
+    return { ok: true, json: async () => ({ name: pkg.name, versions: { '0.1.0': {} } }) };
+  });
+});
+
+test('live release notice guard rejects known unresolved license gaps', () => {
+  assert.throws(() => checkNoticeInventory(''), /incomplete/);
+  assert.throws(() => checkNoticeInventory('# Third-party notices\n## Unresolved release-notice gaps'), /incomplete/);
+  assert.doesNotThrow(() => checkNoticeInventory('# Third-party notices\nComplete upstream notices.'));
 });

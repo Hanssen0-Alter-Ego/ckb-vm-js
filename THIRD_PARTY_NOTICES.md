@@ -1,6 +1,6 @@
 # Third-party notices
 
-This inventory covers 157 third-party Cargo package/version entries from the locked build, including build-only and target-specific dependencies. Their inclusion does not imply every package is linked into the distributed WebAssembly. npm development tools are not bundled in the published package.
+This inventory covers 157 third-party Cargo package/version entries from the locked wasm32-unknown-unknown dependency graph, including build-only dependencies. Their inclusion does not imply every package is linked into the distributed WebAssembly. npm development tools are not bundled in the published package.
 
 License texts and notices below are reproduced from the published crate contents, pinned vendored source trees, or the upstream URLs shown. Identical texts are printed once. MIT is selected where an MIT alternative is available; additional Unicode and bundled-component notices remain included. BLAKE2 uses its offered CC0 option. Upstream URLs using a branch rather than a commit/tag are explicitly current-upstream fallbacks, not verified release snapshots.
 
@@ -341,6 +341,29 @@ DEALINGS IN THE SOFTWARE.
 
 ## Notice 7
 
+- BLAKE2 bundled in blake2b-ref 0.3.1 (CC0-1.0 selected); source: https://raw.githubusercontent.com/jjyr/blake2b-ref.rs/f1efc4872d67a8d4c4a57d2d0e16f8b5e53724b9/src/blake2b_ref.rs
+- BLAKE2 bundled in blake2b-rs 0.2.0 (CC0-1.0 selected); source: https://crates.io/crates/blake2b-rs/0.2.0 — BLAKE2/ref/blake2b-ref.c
+- ckb-system-scripts 0.5.4 bundled component: ckb-system-blake2b-header.txt; source: https://raw.githubusercontent.com/nervosnetwork/ckb-system-scripts/v0.5.4/c/blake2b.h
+
+```text
+/*
+   BLAKE2 reference source code package - reference C implementations
+
+   Copyright 2012, Samuel Neves <sneves@dei.uc.pt>.  You may use this under the
+   terms of the CC0, the OpenSSL Licence, or the Apache Public License 2.0, at
+   your option.  The terms of these licenses can be found at:
+
+   - CC0 1.0 Universal : http://creativecommons.org/publicdomain/zero/1.0
+   - OpenSSL license   : https://www.openssl.org/source/license.html
+   - Apache 2.0        : http://www.apache.org/licenses/LICENSE-2.0
+
+   More information about the BLAKE2 hash function can be found at
+   https://blake2.net.
+*/
+```
+
+## Notice 8
+
 - blake2b-rs 0.2.0 (MIT); source: https://crates.io/crates/blake2b-rs/0.2.0 — LICENSE
 - faster-hex 0.6.1 (MIT); source: https://crates.io/crates/faster-hex/0.6.1 — LICENSE
 
@@ -368,7 +391,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 8
+## Notice 9
 
 - blake2b-rs 0.2.0 bundled component: THIRD-PARTY/LICENSE-emilbayes; source: https://crates.io/crates/blake2b-rs/0.2.0 — THIRD-PARTY/LICENSE-emilbayes
 
@@ -378,28 +401,6 @@ Copyright (c) 2017, Emil Bay github@tixz.dk
 Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
 
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-```
-
-## Notice 9
-
-- BLAKE2 bundled in blake2b-rs 0.2.0 (CC0-1.0 selected); source: https://crates.io/crates/blake2b-rs/0.2.0 — BLAKE2/ref/blake2b-ref.c
-- ckb-system-scripts 0.5.4 bundled component: ckb-system-blake2b-header.txt; source: https://raw.githubusercontent.com/nervosnetwork/ckb-system-scripts/v0.5.4/c/blake2b.h
-
-```text
-/*
-   BLAKE2 reference source code package - reference C implementations
-
-   Copyright 2012, Samuel Neves <sneves@dei.uc.pt>.  You may use this under the
-   terms of the CC0, the OpenSSL Licence, or the Apache Public License 2.0, at
-   your option.  The terms of these licenses can be found at:
-
-   - CC0 1.0 Universal : http://creativecommons.org/publicdomain/zero/1.0
-   - OpenSSL license   : https://www.openssl.org/source/license.html
-   - Apache 2.0        : http://www.apache.org/licenses/LICENSE-2.0
-
-   More information about the BLAKE2 hash function can be found at
-   https://blake2.net.
-*/
 ```
 
 ## Notice 10

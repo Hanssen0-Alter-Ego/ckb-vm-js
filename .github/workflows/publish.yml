@@ -54,7 +54,7 @@ jobs:
           package-manager-cache: false
       - name: Use a pinned OIDC-capable npm CLI
         run: npm install --global npm@11.21.0 --ignore-scripts
-      - name: Verify tag, version, release kind and main ancestry
+      - name: Verify tag, version, ancestry and live registry readiness
         id: metadata
         run: node scripts/release.mjs check
       - name: Install build tools and dependencies (no restored build cache)

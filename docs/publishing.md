@@ -36,9 +36,11 @@ npm publish ./ckb-vm-js-0.2.0.tgz --access public --ignore-scripts
 npm stage publish ./ckb-vm-js-0.2.0.tgz --access public
 ```
 
-本工作流要求已有一个**公开可读的 bootstrap 版本**。如果使用暂存方式，请先批准第一版，再用下一个版本验证自动发布。工作流遇到 registry 404 会明确停止，不会降级到 token 或自动注册。读取 registry 的错误也不会被当作“版本不存在”。
+本工作流要求已有一个**公开可读的 bootstrap 版本**。如果使用暂存方式，请先批准第一版，再用下一个版本验证自动发布。live Release 在安装构建依赖前检查公开 registry，并在发布前再次检查版本和 dist-tag；手动 dry-run 保持可离线准备首包。工作流遇到 registry 404 会明确停止，不会降级到 token 或自动注册。读取 registry 的错误也不会被当作“版本不存在”。
 
 已发布的包名/版本组合不能再次使用。若先发布了 `0.2.0`，第一个 OIDC Release 应使用新版本，例如 `0.2.1`，不能再发布 `v0.2.0`。[npm publish 规则](https://docs.npmjs.com/cli/v11/commands/npm-publish/)
+
+live 检查同时拒绝 notices 中仍标记的未解决缺口，发布前再检查 tarball 内的 notices。该检查不是法律审查。
 
 发布前仍应审阅实验性验证范围及 [第三方许可证 notice 缺口](../THIRD_PARTY_NOTICES.md)。自动化和 provenance 不会代替代码或许可证审查。
 

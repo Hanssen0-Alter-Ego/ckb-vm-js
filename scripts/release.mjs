@@ -67,6 +67,20 @@ export function checkRegistryMetadata(meta, data) {
   if (current && compareVersions(meta.version, current) <= 0) throw new Error(`Refusing to move ${meta.dist_tag} backwards from ${current}`);
 }
 
+// Public metadata only; never reads npm credentials or assumes package ownership.
+export async function checkRegistry(meta, fetcher = fetch) {
+  const response = await fetcher(`${registry}/${packageName}`, { signal: AbortSignal.timeout(20_000) });
+  if (response.status === 404) throw new Error('No public bootstrap package; create/approve its first version before configuring OIDC. See docs/publishing.md');
+  if (!response.ok) throw new Error(`Registry read failed: HTTP ${response.status}; not treating this as an unpublished version`);
+  checkRegistryMetadata(meta, await response.json());
+}
+
+export function checkNoticeInventory(notices) {
+  if (!notices.trim() || notices.includes('## Unresolved release-notice gaps')) {
+    throw new Error('Third-party release notices are incomplete; resolve the documented upstream gaps before publishing');
+  }
+}
+
 export function checkTarball(bytes, expectedSha, manifest, meta) {
   const digest = createHash('sha256').update(bytes).digest('hex');
   if (expectedSha && digest !== expectedSha) throw new Error('Tarball SHA-256 differs from the tested build');
@@ -94,6 +108,10 @@ async function main(command) {
   if (command === 'check') {
     if (process.env.GITHUB_REPOSITORY !== repository) throw new Error('Unexpected GitHub repository');
     const commit_sha = checkGitContext(meta.tag, live ? process.env.GITHUB_SHA : undefined);
+    if (live) {
+      await checkRegistry(meta);
+      checkNoticeInventory(await readFile('THIRD_PARTY_NOTICES.md', 'utf8'));
+    }
     await output({ ...meta, commit_sha });
     return;
   }
@@ -111,10 +129,8 @@ async function main(command) {
   }
   if (!live || process.env.GITHUB_REPOSITORY !== repository || !/^[a-f0-9]{64}$/.test(process.env.EXPECTED_SHA256 ?? '')) throw new Error('Live release event and tested artifact digest required');
   checkGitContext(meta.tag, process.env.GITHUB_SHA);
-  const response = await fetch(`${registry}/${packageName}`, { signal: AbortSignal.timeout(20_000) });
-  if (response.status === 404) throw new Error('No public bootstrap package; create/approve its first version before configuring OIDC. See docs/publishing.md');
-  if (!response.ok) throw new Error(`Registry read failed: HTTP ${response.status}; not treating this as an unpublished version`);
-  checkRegistryMetadata(meta, await response.json());
+  await checkRegistry(meta);
+  checkNoticeInventory(execFileSync('tar', ['-xOf', filename, 'package/THIRD_PARTY_NOTICES.md'], { encoding: 'utf8' }));
   await output({ ...meta, sha256 });
 }
 
