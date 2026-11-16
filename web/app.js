@@ -9,24 +9,25 @@ let active;
 let loading = false;
 let dirty = false;
 let unsaved = false;
+let exportRequested = false;
 let loadedSample = null;
 let sourceName = 'None';
 const exampleMenu=document.querySelector('.example-menu');
 const exampleSummary=exampleMenu.querySelector('summary');
 document.addEventListener('pointerdown',event=>{if(exampleMenu.open&&!exampleMenu.contains(event.target))exampleMenu.open=false;});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&exampleMenu.open&&!document.querySelector('dialog[open]')){event.preventDefault();exampleMenu.open=false;exampleSummary.focus();}});
-function showSource() { $('loaded-source').textContent = `Current request: ${sourceName}${dirty ? ' (edited)' : ''}`; }
+function showSource() { $('loaded-source').textContent = `Current request: ${sourceName}${dirty ? ' (edited)' : ''}`; $('export-state').textContent=unsaved?(exportRequested?'Export requested; check your file.':'Changes not exported.'):''; }
 const size = (text) => new TextEncoder().encode(text).length;
 const workbench = createWorkbench($('workbench'), {
   read: () => readRequest($('request').value),
   write(request) { $('request').value = stringifyLossless(request); markEdited(); },
   edited: markEdited,
-  capture: () => ({ text: $('request').value, dirty, unsaved, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, requestedScope: $('requested-scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden, groupTitle: $('group-title').textContent, groupMembers: $('group-members').textContent, groupHidden: $('group-details').hidden, groupOpen: $('group-details').open }),
-  restore(saved) { $('request').value = saved.text; dirty = saved.dirty; unsaved = saved.unsaved; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; $('requested-scope').textContent = saved.requestedScope; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; try{renderRepairs(JSON.parse(saved.result),readRequest(saved.text));}catch{hideRepairs();} showSource(); },
+  capture: () => ({ text: $('request').value, dirty, unsaved, exportRequested, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, requestedScope: $('requested-scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden, groupTitle: $('group-title').textContent, groupMembers: $('group-members').textContent, groupHidden: $('group-details').hidden, groupOpen: $('group-details').open }),
+  restore(saved) { $('request').value = saved.text; dirty = saved.dirty; unsaved = saved.unsaved; exportRequested = saved.exportRequested; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; $('requested-scope').textContent = saved.requestedScope; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; try{renderRepairs(JSON.parse(saved.result),readRequest(saved.text));}catch{hideRepairs();} showSource(); },
 });
 window.addEventListener('beforeunload', event => { if(unsaved||workbench.hasPendingDraft()){event.preventDefault();event.returnValue='';} });
 function markEdited() {
-  dirty = true; unsaved = true; showSource();
+  dirty = true; unsaved = true; exportRequested = false; showSource();
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
   $('result').textContent = 'Previous output cleared because the input changed.';
   $('explanation').textContent = 'No verification has run for this input.';
@@ -69,7 +70,7 @@ async function loadSample(initial = false) {
     $('explanation').textContent = 'No verification has run for this input.';
     $('result').textContent = 'No verification has run for this input.';
     $('summary').textContent = 'Synthetic fixture loaded. Inspect the supplied consensus before running.';
-    loadedSample = $('sample').value; sourceName = $('sample').selectedOptions[0]?.textContent ?? 'Example'; dirty = false; unsaved = false; showSource(); status('Ready');if(!initial)exampleMenu.open=false;
+    loadedSample = $('sample').value; sourceName = $('sample').selectedOptions[0]?.textContent ?? 'Example'; dirty = false; unsaved = false; exportRequested = false; showSource(); status('Ready');if(!initial)exampleMenu.open=false;
   } catch (error) { $('sample').value = loadedSample ?? ''; fail(error, 'Sample error'); }
   finally { loading = false; workbench.refresh(true); busy(false); }
 }
@@ -84,13 +85,13 @@ $('upload').addEventListener('change', async (event) => {
     const request = readRequest(await file.text());
     $('advanced').open = false; $('explanation').textContent = 'Imported data has not been verified.';
     $('request').value = stringifyLossless(request);
-    workbench.refresh(true); dirty = false; unsaved = false; loadedSample = null; sourceName = 'Imported JSON'; $('sample').value = ''; $('load').disabled = true; showSource(); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
+    workbench.refresh(true); dirty = false; unsaved = false; exportRequested = false; loadedSample = null; sourceName = 'Imported JSON'; $('sample').value = ''; $('load').disabled = true; showSource(); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
     $('result').textContent = 'No verification has run for this input.';
   } catch (error) { fail(error); }
   event.target.value = '';
 });
 $('request').addEventListener('input', () => {
-  dirty = true; unsaved = true; showSource();
+  dirty = true; unsaved = true; exportRequested = false; showSource();
   workbench.refresh(true);
   $('explanation').textContent = 'Input changed. The previous result no longer applies.';
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
@@ -101,7 +102,7 @@ $('download').addEventListener('click', () => {
   try {
     const content = stringifyLossless(readRequest($('request').value));
     const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
-    const link = document.createElement('a'); link.href = url; link.download = 'ckb-verification-request.json'; link.click(); unsaved = false;
+    const link = document.createElement('a'); link.href = url; link.download = 'ckb-verification-request.json'; link.click(); exportRequested = true; showSource();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (error) { clearOutput(); fail(error); }
 });

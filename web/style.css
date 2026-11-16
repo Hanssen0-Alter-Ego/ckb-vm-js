@@ -55,3 +55,9 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 @media(max-height:420px){.inspector-heading{position:static}.inspector input,.inspector textarea{scroll-margin-block:16px}}
 
 .repair-actions{margin-top:12px}.repair-actions p{margin-bottom:8px}.repair-actions button{margin:0 8px 8px 0}
+
+.witness-sort{display:flex;gap:6px;margin:8px 0}.witness-sort button{min-width:44px;min-height:44px;font-size:18px;line-height:1;padding:4px}.inspector[data-editor^="witnesses:"] .witness-sort{display:none}.inspector button{scroll-margin-block:85px}@media(max-height:420px){.inspector button{scroll-margin-block:16px}}
+
+.workspace-actions{display:flex;align-items:flex-start;gap:8px}.export-controls{display:flex;flex-direction:column;align-items:flex-end;max-width:165px}.export-controls .hint{margin-top:5px;text-align:right}.export-controls .hint:empty{display:none}@media(max-width:600px){.workspace-toolbar{flex-wrap:wrap}.workspace-actions{width:100%;justify-content:flex-end}}
+
+.witness-sort{align-items:center;flex-wrap:wrap}.witness-sort .hint{margin-left:4px}
