@@ -12,6 +12,52 @@ let unsaved = false;
 let exportRequested = false;
 let loadedSample = null;
 let sourceName = 'None';
+// A fresh key per document prevents concurrent tabs (including duplicated tabs) from overwriting each other.
+const draftPrefix = 'ckb-vm-js:draft:';
+const draftKey = `${draftPrefix}v1:${crypto.randomUUID()}`;
+let draftAvailable = false;
+let draftFailure = false;
+function draftStatus(message) { $('draft-status').textContent = message; }
+function persistDraft() {
+  try {
+    const record = { version: 1, text: $('request').value, source: sourceName, sample: loadedSample, time: new Date().toISOString() };
+    localStorage.setItem(draftKey, JSON.stringify(record));
+    draftAvailable = true; draftFailure = false;
+    draftStatus('Applied request saved locally. Unapplied editor fields are not saved.');
+  } catch {
+    draftAvailable = false; draftFailure = true;
+    draftStatus('Local draft could not be saved. Export JSON before leaving; storage may be unavailable or full.');
+  }
+}
+function refreshDrafts() {
+  const list = $('draft-list'); list.replaceChildren();
+  try {
+    const keys = Object.keys(localStorage).filter(key => key.startsWith(draftPrefix));
+    $('draft-count').textContent = keys.length ? `(${keys.length})` : '';
+    if (!keys.length) list.append(document.createTextNode('No saved local drafts.'));
+    const records = keys.map(key => { let item; try { item = JSON.parse(localStorage.getItem(key)); } catch {} return { key, item }; });
+    records.sort((a,b) => String(b.item?.time ?? '').localeCompare(String(a.item?.time ?? '')));
+    for (const {key,item} of records) {
+      const row = document.createElement('div'); row.className = 'draft-row'; row.dataset.draftKey = key;
+      const text = document.createElement('span'); text.textContent = item?.version === 1 && typeof item.text === 'string' ? `${typeof item.source === 'string' ? item.source : 'Request'} · ${typeof item.time === 'string' ? item.time : 'Unknown date'}${key === draftKey ? ' · this tab' : ''}` : 'Unrecognized draft version or damaged record'; row.append(text);
+      if (item?.version === 1 && typeof item.text === 'string') {
+        const restore = document.createElement('button'); restore.type = 'button'; restore.className = 'secondary'; restore.textContent = 'Restore'; restore.setAttribute('aria-label', `Restore ${text.textContent}`);
+        restore.onclick = () => {
+          if ((dirty || workbench.hasPendingDraft()) && !confirm('Replace the current request with this local draft? Export first if needed.')) return;
+          $('request').value = item.text; sourceName = 'Restored local draft'; loadedSample = null; $('sample').value = ''; $('load').disabled = true; dirty = true; unsaved = true; exportRequested = false;
+          clearOutput(); $('explanation').textContent = 'Restored locally. This request has not been verified.'; $('result').textContent = 'No verification has run for this input.'; $('summary').textContent = 'Local draft restored. Run to verify it.'; status('Edited'); workbench.refresh(true); showSource(); persistDraft(); refreshDrafts(); $('local-drafts').open = false;
+        }; row.append(restore);
+      }
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'secondary'; remove.textContent = 'Delete'; remove.setAttribute('aria-label', `Delete ${text.textContent}`);
+      remove.onclick = () => { if (!confirm('Delete this local draft from this browser? The current request and other drafts will remain.')) return; try { localStorage.removeItem(key); if (key === draftKey) {draftAvailable = false; draftStatus('This tab’s saved draft was deleted. The next applied edit will save a new one.');} refreshDrafts(); } catch {draftStatus('Could not delete the local draft. Check browser storage settings.');} }; row.append(remove); list.append(row);
+    }
+    if (!draftAvailable && !draftFailure) draftStatus(keys.length ? `${keys.length} local draft${keys.length===1?'':'s'} available. Open Local drafts to restore or delete.` : 'No local draft yet. Applied changes will be saved in this browser.');
+  } catch {
+    $('draft-count').textContent = ''; draftAvailable = false; draftStatus('Browser storage is unavailable. Export JSON before leaving; local recovery is not available.');
+  }
+}
+$('refresh-drafts').addEventListener('click', refreshDrafts);
+$('local-drafts').addEventListener('toggle', () => { if ($('local-drafts').open) refreshDrafts(); });
 const exampleMenu=document.querySelector('.example-menu');
 const exampleSummary=exampleMenu.querySelector('summary');
 document.addEventListener('pointerdown',event=>{if(exampleMenu.open&&!exampleMenu.contains(event.target))exampleMenu.open=false;});
@@ -23,11 +69,11 @@ const workbench = createWorkbench($('workbench'), {
   write(request) { $('request').value = stringifyLossless(request); markEdited(); },
   edited: markEdited,
   capture: () => ({ text: $('request').value, dirty, unsaved, exportRequested, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, requestedScope: $('requested-scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden, groupTitle: $('group-title').textContent, groupMembers: $('group-members').textContent, groupHidden: $('group-details').hidden, groupOpen: $('group-details').open }),
-  restore(saved) { $('request').value = saved.text; dirty = saved.dirty; unsaved = saved.unsaved; exportRequested = saved.exportRequested; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; $('requested-scope').textContent = saved.requestedScope; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; try{renderRepairs(JSON.parse(saved.result),readRequest(saved.text));}catch{hideRepairs();} showSource(); },
+  restore(saved) { $('request').value = saved.text; dirty = saved.dirty; unsaved = saved.unsaved; exportRequested = saved.exportRequested; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; $('requested-scope').textContent = saved.requestedScope; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; try{renderRepairs(JSON.parse(saved.result),readRequest(saved.text));}catch{hideRepairs();} showSource(); persistDraft(); },
 });
 window.addEventListener('beforeunload', event => { if(unsaved||workbench.hasPendingDraft()){event.preventDefault();event.returnValue='';} });
 function markEdited() {
-  dirty = true; unsaved = true; exportRequested = false; showSource();
+  dirty = true; unsaved = true; exportRequested = false; showSource(); persistDraft();
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
   $('result').textContent = 'Previous output cleared because the input changed.';
   $('explanation').textContent = 'No verification has run for this input.';
@@ -59,7 +105,7 @@ function busy(value) {
 }
 async function loadSample(initial = false) {
   if (active || loading) return;
-  if (!initial && dirty && !confirm('Replace your edited transaction with this example? Export JSON first if you want to keep it.')) { $('sample').value = loadedSample ?? ''; $('load').disabled = !$('sample').value; return; }
+  if (!initial && (dirty || sourceName === 'Imported JSON') && !confirm('Replace your edited transaction with this example? Export JSON first if you want to keep it.')) { $('sample').value = loadedSample ?? ''; $('load').disabled = !$('sample').value; return; }
   loading = true; busy(true); clearOutput(); status('Loading sample');
   try {
     const response = await fetch(new URL(`./fixtures/${$('sample').value}.json`, import.meta.url));
@@ -70,7 +116,7 @@ async function loadSample(initial = false) {
     $('explanation').textContent = 'No verification has run for this input.';
     $('result').textContent = 'No verification has run for this input.';
     $('summary').textContent = 'Synthetic fixture loaded. Inspect the supplied consensus before running.';
-    loadedSample = $('sample').value; sourceName = $('sample').selectedOptions[0]?.textContent ?? 'Example'; dirty = false; unsaved = false; exportRequested = false; showSource(); status('Ready');if(!initial)exampleMenu.open=false;
+    loadedSample = $('sample').value; sourceName = $('sample').selectedOptions[0]?.textContent ?? 'Example'; dirty = false; unsaved = false; exportRequested = false; showSource(); status('Ready');if(!initial){persistDraft();exampleMenu.open=false;}
   } catch (error) { $('sample').value = loadedSample ?? ''; fail(error, 'Sample error'); }
   finally { loading = false; workbench.refresh(true); busy(false); }
 }
@@ -85,13 +131,13 @@ $('upload').addEventListener('change', async (event) => {
     const request = readRequest(await file.text());
     $('advanced').open = false; $('explanation').textContent = 'Imported data has not been verified.';
     $('request').value = stringifyLossless(request);
-    workbench.refresh(true); dirty = false; unsaved = false; exportRequested = false; loadedSample = null; sourceName = 'Imported JSON'; $('sample').value = ''; $('load').disabled = true; showSource(); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
+    workbench.refresh(true); dirty = false; unsaved = false; exportRequested = false; loadedSample = null; sourceName = 'Imported JSON'; $('sample').value = ''; $('load').disabled = true; showSource(); status('Ready'); persistDraft(); $('summary').textContent = 'Imported locally. Inspect the request before running.';
     $('result').textContent = 'No verification has run for this input.';
   } catch (error) { fail(error); }
   event.target.value = '';
 });
 $('request').addEventListener('input', () => {
-  dirty = true; unsaved = true; exportRequested = false; showSource();
+  dirty = true; unsaved = true; exportRequested = false; showSource(); persistDraft();
   workbench.refresh(true);
   $('explanation').textContent = 'Input changed. The previous result no longer applies.';
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
@@ -147,4 +193,5 @@ $('run').addEventListener('click', async () => {
 });
 fetch(new URL('./version.json', import.meta.url)).then(r => r.ok ? r.json() : null).then(v => { if (/^[0-9a-f]{40}$/.test(v?.commit ?? '')) { const link=$('build-version'); link.textContent=`Build ${v.commit.slice(0, 10)}`; link.href=`https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/commit/${v.commit}`; link.hidden=false; } }).catch(() => {});
 await loadSample(true);
+refreshDrafts();
 
