@@ -10,6 +10,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
   let selection = null;
   let sessionBaseline = null;
   let depSubsession = null;
+  let removalUndo = null;
   const expanded = new Set();
   let restoreFocus;
   const identities={inputs:[],outputs:[]};
@@ -147,7 +148,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     return ref;
   }
   function refresh(resetIdentity=false) {
-    if(resetIdentity){identities.inputs=[];identities.outputs=[];resolvedIds.clear();draftNames.clear();placeholderPoints.clear();witnessNotice='';nextDraft=0;selection=null;sessionBaseline=null;depSubsession=null;}
+    if(resetIdentity){identities.inputs=[];identities.outputs=[];resolvedIds.clear();draftNames.clear();placeholderPoints.clear();witnessNotice='';nextDraft=0;selection=null;sessionBaseline=null;depSubsession=null;removalUndo=null;}
     const opened = new Set([...root.querySelectorAll('details[open]')].map(d => d.querySelector('summary')?.textContent));
     const activeLabel = root.querySelector('dialog[open]')?.contains(document.activeElement) ? document.activeElement.closest('label')?.firstChild?.textContent : null;
     root.querySelector('dialog')?.close();
@@ -170,7 +171,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       r.transaction[kind].forEach((item,i)=>{
         const card=el('article',undefined,'wb-card');card.append(el('h4',`${kind==='inputs'?'Input':'Output'} index ${i}`));section.append(card);
         const tools=el('div',undefined,'wb-tools');card.append(tools);
-        for(const [action,label] of [['duplicate','Copy'],['remove','Remove']])button(label,()=>{try{changeCells(kind,action,i);}catch(e){error.textContent=e.message;}},tools);
+        button('Copy',()=>{try{changeCells(kind,'duplicate',i);}catch(e){error.textContent=e.message;}},tools);
         if (!item || typeof item !== 'object' || Array.isArray(item)) { card.append(el('p','Invalid cell entry. Correct this entry in JSON.','wb-error')); return; }
         const input=kind==='inputs';
         const cell=input?resolveCell(r,item?.previous_output):{output:item,data:r.transaction.outputs_data?.[i]};
@@ -198,7 +199,6 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
         const ref=referenceFields(row,`Cell dep index ${i}`,dep.out_point,cell,i,'dep');
         if(cell)structuredFields(ref,cell.transaction_info,['context','cells',String(r.context.cells.indexOf(cell)),'transaction_info'],'Origin');
         row.append(el('p','Edits affect this shared resolved cell wherever referenced. Removing a dep does not delete context. Dep-group membership bytes are never rewritten automatically.','hint'));
-        button(`Remove cell dep index ${i}`,()=>{if(depSubsession){commit(q=>{q.transaction.cell_deps.splice(i,1);},false);returnToDeps(false,true);}else commit(q=>{q.transaction.cell_deps.splice(i,1);selection='deps';});},row);
       });
       const newDep=button('New resolved cell',()=>{if(selection==='deps')beginDepEdit(r.transaction.cell_deps.length,true);const next=addDependencyCell(read());write(next);placeholderPoints.add(identityKey(next.transaction.cell_deps.at(-1).out_point));selection=`dep:${next.transaction.cell_deps.length-1}`;refresh();const title=root.querySelector('dialog[open] #inspector-title');if(title){title.tabIndex=-1;title.focus({preventScroll:true});}},deps);newDep.setAttribute('aria-label','New resolved cell');
       const select=el('select');select.disabled=disabled;select.setAttribute('aria-label','Resolved cell to add as dependency');r.context.cells.forEach((c,i)=>{const o=el('option',`${i+1} · ${c?.out_point?.tx_hash}:${c?.out_point?.index}`);o.value=String(i);select.append(o);});deps.append(select);
@@ -279,9 +279,11 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     const choices = scriptChoices(r);
     const scriptId = value => { const index=choices.findIndex(s=>String(s.code_hash).toLowerCase()===String(value?.code_hash).toLowerCase()&&s.hash_type===value?.hash_type&&String(s.args).toLowerCase()===String(value?.args).toLowerCase()); return index<0?'?':String(index+1); };
     for (const [kind, section] of [['inputs',inputs],['outputs',outputs]]) {
-      const column = el('section',undefined,'cell-column'); columns.append(column);
+      const column = el('section',undefined,'cell-column');column.dataset.kind=kind;columns.append(column);
       const list = r.transaction[kind];
       column.append(el('h2',`${kind==='inputs'?'Inputs':'Outputs'} · ${Array.isArray(list)?list.length:'invalid'}`));
+      if(removalUndo&&capture().text!==removalUndo.after)removalUndo=null;
+      if(removalUndo?.kind===kind){const notice=el('div',undefined,'removal-notice');notice.setAttribute('role','status');notice.append(el('span',`${removalUndo.description} removed.`));const undo=button('Undo',()=>{const saved=removalUndo;if(!saved||capture().text!==saved.after){removalUndo=null;refresh();return;}restoreState(saved.baseline);removalUndo=null;refresh();root.querySelector(`[data-cell-id="${saved.identity}"] .cell-preview`)?.focus();},notice);undo.setAttribute('aria-label',`Undo removal of ${removalUndo.description}`);column.append(notice);}
       if(kind==='inputs'&&witnessNotice){const notice=el('p',witnessNotice,'hint witness-notice');notice.setAttribute('role','status');column.append(notice);}
       const cards=[...section.querySelectorAll(':scope > .wb-card')];
       while(identities[kind].length<cards.length){const i=identities[kind].length;let identity=kind==='inputs'?resolvedIdentity(r.transaction.inputs[i]?.previous_output):`C${nextIdentity++}`;if(identities[kind].includes(identity))identity=`C${nextIdentity++}`;identities[kind].push(identity);}
@@ -302,6 +304,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
           const move=button(label,()=>{const identity=identities[kind][i];if(action==='down'&&i>=3)expanded.add(kind);changeCells(kind,action,i);const row=root.querySelector(`[data-cell-id="${identity}"]`);const target=row?.querySelector(`[data-move="${action}"]`);(target&&!target.disabled?target:row?.querySelector('.cell-preview'))?.focus();},tools);
           move.dataset.move=action;move.setAttribute('aria-label',`Move ${description} ${action} · ${name.toLowerCase()} index ${i}`);move.dataset.boundary=String(action==='up'?i===0:i===items.length-1);move.disabled=disabled||move.dataset.boundary==='true';
         }
+        const remove=button('Remove',()=>{const message=kind==='inputs'?`Remove input index ${i} (${description})? The resolved cell and witnesses stay in the snapshot.`:`Remove output index ${i} (${description}) and its data?`;if(!window.confirm(message))return;const baseline=captureState();const removedIdentity=identities[kind][i];try{changeCells(kind,'remove',i);removalUndo={kind,description,baseline,identity:removedIdentity,after:capture().text};refresh();const column=root.querySelector(`.cell-column[data-kind="${kind}"]`);const rows=[...column.querySelectorAll('.cell-row:not([hidden])')];(rows[Math.min(i,rows.length-1)]?.querySelector('.cell-preview')??column.querySelector(':scope > button:not(.browse-cells)'))?.focus();}catch(e){error.textContent=e.message;}},tools);remove.classList.add('remove-cell');remove.setAttribute('aria-label',`Remove ${name.toLowerCase()} index ${i} · ${description}`);
         if(i>=4 && !expanded.has(kind))row.hidden=true;
         column.append(row);
       });
@@ -323,7 +326,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     if(!depCards.length)depItems.append(el('span','None','hint'));
     const manage=button('Manage',()=>open('deps',manage),depRail);manage.setAttribute('aria-label','Manage cell deps');
     const depManager=el('section');depManager.append(el('p','Cell dependencies are cells scripts can use. A dep group contains references to other cells.','hint'));
-    depCards.forEach((editor,i)=>{const dep=r.transaction.cell_deps[i];const cell=resolveCell(r,dep?.out_point);const b=cellPreview(cell,outpointName(dep?.out_point,r),i,'Cell dep',()=>open(`dep:${i}`,b),dep?.out_point);const kind=dep?.dep_type==='code'?'Code':dep?.dep_type==='dep_group'?'Dep group':'Invalid type';b.querySelector('.cell-number').append(` · ${kind}`);b.setAttribute('aria-label',`Edit cell dep index ${i} · ${kind} · ${outpointName(dep?.out_point,r)}`);depManager.append(b);});
+    depCards.forEach((editor,i)=>{const dep=r.transaction.cell_deps[i];const cell=resolveCell(r,dep?.out_point);const description=outpointName(dep?.out_point,r);const b=cellPreview(cell,description,i,'Cell dep',()=>open(`dep:${i}`,b),dep?.out_point);const kind=dep?.dep_type==='code'?'Code':dep?.dep_type==='dep_group'?'Dep group':'Invalid type';b.querySelector('.cell-number').append(` · ${kind}`);b.setAttribute('aria-label',`Edit cell dep index ${i} · ${kind} · ${description}`);const row=el('div',undefined,'cell-row dep-list-row');if(b.style.getPropertyValue('--script'))row.style.setProperty('--script',b.style.getPropertyValue('--script'));row.append(b);const actions=el('div',undefined,'list-tools');row.append(actions);const remove=button('Remove',()=>{if(!window.confirm(`Remove cell dependency index ${i} (${description})? The resolved cell and its other references remain. Cancel changes in this list to restore the dependency.`))return;const scroll=dialog.scrollTop;commit(q=>{q.transaction.cell_deps.splice(i,1);},false);refresh();const current=root.querySelector('dialog[open]');if(!current)return;current.scrollTop=scroll;const cards=[...current.querySelectorAll('.dep-list-row .cell-preview')];(cards[Math.min(i,cards.length-1)]??current.querySelector('[aria-label="New resolved cell"]'))?.focus({preventScroll:true});},actions);remove.classList.add('remove-cell');remove.setAttribute('aria-label',`Remove cell dependency index ${i} · ${kind} · ${description}`);depManager.append(row);});
     [...deps.children].filter(n=>!depCards.includes(n)&&n.tagName!=='H3').forEach(n=>depManager.append(n));
     editors.set('deps',['Manage cell deps',depManager]);
     const witnessCards=[...witnesses.querySelectorAll(':scope > .witness-editor')];
