@@ -58,6 +58,8 @@ Build before installing from a checkout or making an npm tarball. No npm registr
 
 ## Publishing
 
+To clone, build, test and publish the first package locally, follow the [local first-publish guide](docs/local-first-publish.md), including platform-specific native/WASM tools and the exact-tarball consumer test.
+
 [发布工作流与 Trusted Publisher 配置指南](docs/publishing.md) explains the one-time npm bootstrap, exact trust fields, protected environment and release process. Manual runs only build/test/package; publishing a GitHub Release is the only live npm trigger. Adding this workflow does not configure accounts or publish a package.
 
 ## Use

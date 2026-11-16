@@ -15,6 +15,8 @@
 
 参考了 [CCC 发布流程](https://github.com/ckb-devrel/ccc/blob/b7babe4c25bdf0cf9f0e2d5a89b8dc6b12a08414/.github/workflows/_publish-packages.yaml)的独立发布环境和构建后发布结构。该版本 CCC 使用 Changesets 和 `NPM_TOKEN`；本项目是单包，因此没有照搬 monorepo、canary/评论触发或长期 token 方案。
 
+希望自己 clone、构建并首发，请按[本地首次发布完整步骤](local-first-publish.md)执行；不要只 npm pack 未构建的 checkout。
+
 ## 1. 首次创建 npm 包
 
 Trusted Publisher 是**包级设置**。还不存在的 `ckb-vm-js` 不能凭空配置 OIDC 并直接完成首发。由准备拥有该 npm 包的维护者，在确认名称仍可用并审阅内容后，选择一种方式：
