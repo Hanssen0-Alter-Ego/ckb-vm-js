@@ -47,3 +47,6 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 .dep-rail{display:grid;grid-template-columns:minmax(75px,112px) minmax(0,1fr) auto;align-items:center;gap:8px}.dep-rail .rail-label{width:auto;margin:0}.dep-items{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}.dep-rail>.secondary{margin-left:0;white-space:nowrap}
 
 .list-tools .remove-cell{font-size:10px;line-height:1.1;padding:4px 2px}.removal-notice{display:flex;align-items:center;gap:8px;color:#d4dfcd;font-size:12px;margin:0 0 10px}.removal-notice button{padding:6px 10px;min-height:44px}.dep-list-row{margin-bottom:9px}.inspector .dep-list-row button{margin-right:0}
+
+/* Allow the full removal label to stay readable beside the 44px controls. */
+.cell-row{grid-template-columns:minmax(0,1fr) 64px}.list-tools{align-items:center}.list-tools .remove-cell{width:56px;min-width:56px;white-space:nowrap}
