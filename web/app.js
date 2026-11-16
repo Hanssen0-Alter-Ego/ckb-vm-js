@@ -17,20 +17,45 @@ const draftPrefix = 'ckb-vm-js:draft:';
 const draftKey = `${draftPrefix}v1:${crypto.randomUUID()}`;
 let draftAvailable = false;
 let draftFailure = false;
+let draftLost = false;
 function draftStatus(message) { if ($('draft-status').textContent !== message) $('draft-status').textContent = message; }
 function persistDraft() {
   try {
     const record = { version: 1, text: $('request').value, source: sourceName, sample: loadedSample, time: new Date().toISOString() };
     localStorage.setItem(draftKey, JSON.stringify(record));
-    draftAvailable = true; draftFailure = false;
+    draftAvailable = true; draftFailure = false; draftLost = false; $('save-local-draft').hidden = true;
     draftStatus('Applied request saved locally. Unapplied editor fields are not saved.');
   } catch {
-    draftAvailable = false; draftFailure = true;
+    draftAvailable = false; draftFailure = true; draftLost = true; $('save-local-draft').hidden = false;
     draftStatus('Local draft could not be saved. Export JSON before leaving; storage may be unavailable or full.');
   }
 }
+// A successful earlier write does not prove the record still exists in shared storage.
+function checkCurrentDraft() {
+  if (!draftAvailable && !draftLost) return;
+  try {
+    const raw = localStorage.getItem(draftKey);
+    let record;
+    try { record = raw === null ? null : JSON.parse(raw); } catch { record = null; }
+    if (record?.version === 1 && record.text === $('request').value) {
+      draftAvailable = true; draftFailure = false; draftLost = false; $('save-local-draft').hidden = true;
+      draftStatus('Applied request saved locally. Unapplied editor fields are not saved.');
+    } else {
+      draftAvailable = false; draftFailure = false; draftLost = true; $('save-local-draft').hidden = false;
+      draftStatus('This request has no current local draft. Save it again or export JSON before leaving.');
+    }
+  } catch {
+    draftAvailable = false; draftFailure = true; draftLost = true; $('save-local-draft').hidden = false;
+    draftStatus('Browser storage is unavailable. Save a local draft again or export JSON before leaving.');
+  }
+}
+$('save-local-draft').addEventListener('click', () => { persistDraft(); if ($('save-local-draft').hidden) $('local-drafts').querySelector('summary').focus(); });
+window.addEventListener('storage', event => { if (event.key === draftKey || event.key === null) checkCurrentDraft(); });
+window.addEventListener('focus', checkCurrentDraft);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkCurrentDraft(); });
 function refreshDrafts() {
   const list = $('draft-list'); list.replaceChildren();
+  checkCurrentDraft();
   try {
     const keys = Object.keys(localStorage).filter(key => key.startsWith(draftPrefix));
     $('draft-count').textContent = keys.length ? `(${keys.length})` : '';
@@ -49,11 +74,11 @@ function refreshDrafts() {
         }; row.append(restore);
       }
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'secondary'; remove.textContent = 'Delete'; remove.setAttribute('aria-label', `Delete ${text.textContent}`);
-      remove.onclick = () => { if (!confirm('Delete this local draft from this browser? The current request and other drafts will remain.')) return; const index = [...list.children].indexOf(row); try { localStorage.removeItem(key); if (key === draftKey) {draftAvailable = false; draftStatus('This tab’s saved draft was deleted. The next applied edit will save a new one.');} refreshDrafts(); (list.children[Math.min(index, list.children.length - 1)]?.querySelector('button') ?? $('refresh-drafts')).focus(); } catch {draftStatus('Could not delete the local draft. Check browser storage settings.');} }; row.append(remove); list.append(row);
+      remove.onclick = () => { if (!confirm('Delete this local draft from this browser? The current request and other drafts will remain.')) return; const index = [...list.children].indexOf(row); try { localStorage.removeItem(key); if (key === draftKey) {draftAvailable = false; draftFailure = false; draftLost = true; $('save-local-draft').hidden = false; draftStatus('This request has no current local draft. Save it again or export JSON before leaving.');} refreshDrafts(); (list.children[Math.min(index, list.children.length - 1)]?.querySelector('button') ?? $('refresh-drafts')).focus(); } catch {draftStatus('Could not delete the local draft. Check browser storage settings.');} }; row.append(remove); list.append(row);
     }
-    if (!draftAvailable && !draftFailure) draftStatus(keys.length ? `${keys.length} local draft${keys.length===1?'':'s'} available. Open Local drafts to restore or delete.` : 'No local draft yet. Applied changes will be saved in this browser.');
+    if (!draftAvailable && !draftFailure && !draftLost) draftStatus(keys.length ? `${keys.length} local draft${keys.length===1?'':'s'} available. Open Local drafts to restore or delete.` : 'No local draft yet. Applied changes will be saved in this browser.');
   } catch {
-    $('draft-count').textContent = ''; draftAvailable = false; draftStatus('Browser storage is unavailable. Export JSON before leaving; local recovery is not available.');
+    $('draft-count').textContent = ''; draftAvailable = false; draftFailure = true; draftLost = true; $('save-local-draft').hidden = false; draftStatus('Browser storage is unavailable. Export JSON before leaving; local recovery is not available.');
   }
 }
 $('refresh-drafts').addEventListener('click', refreshDrafts);
@@ -69,9 +94,9 @@ const workbench = createWorkbench($('workbench'), {
   write(request) { $('request').value = stringifyLossless(request); markEdited(); },
   edited: markEdited,
   capture: () => ({ text: $('request').value, dirty, unsaved, exportRequested, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, requestedScope: $('requested-scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden, groupTitle: $('group-title').textContent, groupMembers: $('group-members').textContent, groupHidden: $('group-details').hidden, groupOpen: $('group-details').open }),
-  restore(saved) { $('request').value = saved.text; dirty = saved.dirty; unsaved = saved.unsaved; exportRequested = saved.exportRequested; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; $('requested-scope').textContent = saved.requestedScope; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; try{renderRepairs(JSON.parse(saved.result),readRequest(saved.text));}catch{hideRepairs();} showSource(); persistDraft(); },
+  restore(saved) { $('request').value = saved.text; dirty = saved.dirty; unsaved = saved.unsaved; exportRequested = saved.exportRequested; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; $('requested-scope').textContent = saved.requestedScope; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; try{renderRepairs(JSON.parse(saved.result),readRequest(saved.text));}catch{hideRepairs();} showSource(); if (!draftLost) persistDraft(); },
 });
-window.addEventListener('beforeunload', event => { if(unsaved||workbench.hasPendingDraft()){event.preventDefault();event.returnValue='';} });
+window.addEventListener('beforeunload', event => { checkCurrentDraft(); if(unsaved||draftLost||workbench.hasPendingDraft()){event.preventDefault();event.returnValue='';} });
 function markEdited() {
   dirty = true; unsaved = true; exportRequested = false; showSource(); persistDraft();
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
