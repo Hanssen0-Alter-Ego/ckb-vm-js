@@ -30,3 +30,5 @@
 body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px}.field-error:empty{display:none}.inspector input{scroll-margin-block:85px}.dep-rail>.secondary{border-color:var(--line)}
 
 .cell-identity{color:#d4dfcd;font-size:12px}.placeholder-note{color:#d4dfcd;font-size:12px}@media(max-width:600px){.cell-identity{font-size:12px}}
+
+.sample-row{flex-direction:column}.sample-row select{flex:none;width:100%;min-height:44px}.sample-row button{width:100%}.outpoint-details textarea{height:62px;resize:vertical;overflow-wrap:anywhere;word-break:break-all}.outpoint-details input{width:100%}

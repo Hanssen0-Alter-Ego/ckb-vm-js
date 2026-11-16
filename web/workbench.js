@@ -2,7 +2,7 @@ import { rawNumber } from './lossless-json.js';
 import { headerHash } from './header-hash.js';
 import { headerCandidates, linkExistingHeader, addHeaderFromFields, setHeaderExtension } from './header-model.js';
 import { ckb, ckbToHex } from './guided.js';
-import { resolveCell, scriptChoices, inspectRequest, mutateCellList, decimalToRpc, rpcToDecimal, addDependencyCell, changeDependencyReference, changeInputReference, scriptName } from './workbench-model.js';
+import { resolveCell, scriptChoices, inspectRequest, diagnosticMatchesCell, mutateCellList, decimalToRpc, rpcToDecimal, addDependencyCell, changeDependencyReference, changeInputReference, scriptName } from './workbench-model.js';
 
 // The JSON request is the source of truth. Each edit changes only its target field.
 export function createWorkbench(root, { read, write, edited, capture, restore }) {
@@ -268,11 +268,11 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       cards.forEach((editor,i)=> {
         const key=`${kind}:${i}`, name=kind==='inputs'?'Input':'Output', identity=identities[kind][i];
         const description=kind==='inputs'?outpointName(items[i]?.previous_output,r):draftName(identity);
-        editors.set(key,[`${name} index ${i}`,editor,description]);
+        editors.set(key,[`${name} index ${i}`,editor,description,kind==='inputs'?items[i]?.previous_output:null]);
         const cell=kind==='inputs'?resolveCell(r,items[i]?.previous_output):{output:items[i],data:r.transaction.outputs_data?.[i]};
         const b=cellPreview(cell,description,i,name,()=>open(key,b),kind==='inputs'?items[i]?.previous_output:null);
         b.setAttribute('aria-label',`Edit ${name.toLowerCase()} index ${i} · ${description}`);
-        if(!cell?.output || report.diagnostics.some(d=>d.path.includes(`${kind}[${i}]`) || d.path.includes(`outputs_data[${i}]`))) b.append(el('span','⚠ Needs attention','cell-warning'));
+        if(!cell?.output || report.diagnostics.some(d=>diagnosticMatchesCell(d.path,kind,i,r))){b.append(el('span','⚠ Needs attention','cell-warning'));b.setAttribute('aria-label',`${b.getAttribute('aria-label')} · Needs attention`);}
         const row=el('div',undefined,'cell-row');row.dataset.cellId=identities[kind][i];if(b.style.getPropertyValue('--script'))row.style.setProperty('--script',b.style.getPropertyValue('--script'));row.append(b);
         const tools=el('div',undefined,'list-tools');row.append(tools);
         for(const [action,label] of [['up','↑'],['down','↓']]){
@@ -291,7 +291,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     const depCards=[...deps.querySelectorAll(':scope > .wb-card')];
     const manage=button('Manage',()=>open('deps',manage),depRail);manage.setAttribute('aria-label','Manage cell deps');
     depCards.forEach((editor,i)=>{
-      const point=r.transaction.cell_deps[i]?.out_point;const description=outpointName(point,r);const key=`dep:${i}`;editors.set(key,[`Cell dep index ${i}`,editor,description]);
+      const point=r.transaction.cell_deps[i]?.out_point;const description=outpointName(point,r);const key=`dep:${i}`;editors.set(key,[`Cell dep index ${i}`,editor,description,point]);
       const kind=r.transaction.cell_deps[i]?.dep_type;const kindLabel=kind==='code'?'Code':kind==='dep_group'?'Dep group':'Invalid type';const b=el('button',`#${i} · ${kindLabel} · ${description}${description.startsWith('Local placeholder')?' · local snapshot only; chain status not checked':''}`,'dep-dot dep-kind');b.type='button';b.disabled=disabled;
       if(kind==='dep_group')b.classList.add('dep-group');
       b.setAttribute('aria-label',`Cell dep index ${i} · ${kind??'invalid'} · ${description}${description.startsWith('Local placeholder')?' · local snapshot only; chain status not checked':''} · open details`);
@@ -388,13 +388,16 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       headerEditors.forEach(([,card])=>headerManager.insertBefore(card,headerManager.querySelector(':scope > button')));
       dialog.replaceChildren();
       const top=el('div',undefined,'inspector-heading');const title=el('h2',entry[0]);title.id='inspector-title';top.append(title);
-      const close=el('button','Save','secondary');close.type='button';close.onclick=()=>finish();top.append(close);const discard=el('button','Cancel changes','secondary discard-draft');discard.type='button';discard.onclick=()=>finish(true);top.append(discard);dialog.append(top);if(entry[2]){const identity=el('p',entry[2],'inspector-identity');identity.id='inspector-identity';dialog.append(identity);if(entry[2].includes('outpoint')||entry[2].startsWith('Outpoint'))dialog.append(el('p',entry[2].startsWith('Local placeholder')?'Local snapshot only; chain status has not been checked.':'Chain status has not been checked.','hint'));dialog.setAttribute('aria-describedby',identity.id);}else dialog.removeAttribute('aria-describedby');dialog.append(el('p','Save keeps changes. Cancel restores the request from when this editor was opened.','hint'),error,entry[1]);
+      const close=el('button','Save','secondary');close.type='button';close.onclick=()=>finish();top.append(close);const discard=el('button','Cancel changes','secondary discard-draft');discard.type='button';discard.onclick=()=>finish(true);top.append(discard);dialog.append(top);if(entry[2]){const identity=el('p',entry[2],'inspector-identity');identity.id='inspector-identity';dialog.append(identity);if(entry[2].includes('outpoint')||entry[2].startsWith('Outpoint'))dialog.append(el('p',entry[2].startsWith('Local placeholder')?'Local snapshot only; chain status has not been checked.':'Chain status has not been checked.','hint'));dialog.setAttribute('aria-describedby',identity.id);}else dialog.removeAttribute('aria-describedby');
+      const point=entry[3];if(point&&typeof point==='object'&&!Array.isArray(point)&&typeof point.tx_hash==='string'&&typeof point.index==='string'){const full=el('details',undefined,'outpoint-details');full.append(el('summary','Full outpoint · select to copy'));const hashLabel=el('label','Transaction hash','wb-field');const hash=el('textarea');hash.readOnly=true;hash.value=point.tx_hash;hash.setAttribute('aria-label','Transaction hash (read only)');hashLabel.append(hash);const indexLabel=el('label','Output index (RPC hex)','wb-field');const index=el('input');index.readOnly=true;index.value=point.index;index.setAttribute('aria-label','Output index (read only)');indexLabel.append(index);full.append(hashLabel,indexLabel);dialog.append(full);}
+      dialog.append(el('p','Save keeps changes. Cancel restores the request from when this editor was opened.','hint'),error,entry[1]);
       dialog.querySelectorAll('[data-default-open]').forEach(d=>{d.open=true;});
       dialog.querySelectorAll('input,select,textarea,button').forEach(n=>{n.disabled=disabled||n.dataset.boundary==='true';});
       if(!dialog.open)dialog.showModal();
     }
     function returnFocus(){
       if(!restoreFocus)return;const nodes=[...root.querySelectorAll('[aria-label]')];let target=nodes.find(n=>n.getAttribute('aria-label')===restoreFocus);
+      const cell=/^Edit (input|output) index ([0-9]+) ·/.exec(restoreFocus);if(!target&&cell)target=nodes.find(n=>n.getAttribute('aria-label').startsWith(`Edit ${cell[1]} index ${cell[2]} ·`));
       const dep=/^Edit cell dep index ([0-9]+) ·/.exec(restoreFocus);if(!target&&dep)target=nodes.find(n=>n.getAttribute('aria-label').startsWith(`Cell dep index ${dep[1]} ·`));
       if(!target)target=nodes.find(n=>n.getAttribute('aria-label')==='Manage cell deps');target?.focus();
     }

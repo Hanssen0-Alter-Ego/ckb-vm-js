@@ -15,14 +15,15 @@ test('project Pages path loads real WASM and supports repeat, rejection and reco
     expect(result.chain_state_verified).toBe(false);
     expect(result.cycles).toBe('0x21b');
   }
-  await page.locator('.example-menu summary').click();
   await page.locator('#advanced summary').click();
+  await page.locator('.example-menu summary').click();
   await page.locator('#sample').selectOption('selected-lock');
   await page.getByRole('button', { name: 'Load sample' }).click();
   await expect(page.locator('#status')).toHaveText('Ready');
   await page.getByRole('button', { name: 'Run verification' }).click();
   await expect(page.locator('#status')).toHaveText('Passed snapshot');
   await expect(page.locator('#scope')).toHaveText('Selected script group');
+  await page.locator('.example-menu summary').click();
   await page.locator('#sample').selectOption('script-failure');
   await page.getByRole('button', { name: 'Load sample' }).click();
   await expect(page.locator('#status')).toHaveText('Ready');
@@ -32,6 +33,7 @@ test('project Pages path loads real WASM and supports repeat, rejection and reco
   await page.locator('#request').fill('{broken');
   await page.getByRole('button', { name: 'Run verification' }).click();
   await expect(page.locator('#status')).toHaveText('Input error');
+  await page.locator('.example-menu summary').click();
   await page.locator('#sample').selectOption('valid');
   page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: 'Load sample' }).click();

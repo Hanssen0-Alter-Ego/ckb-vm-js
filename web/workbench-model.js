@@ -104,6 +104,17 @@ export function inspectRequest(request) {
   return { diagnostics, inputTotal: inputTotal === null ? null : ckb(inputTotal), outputTotal: outputTotal === null ? null : ckb(outputTotal) };
 }
 
+/** Match an indexed preflight path to its actual input or output card. */
+export function diagnosticMatchesCell(path, kind, index, request) {
+  if (typeof path !== 'string' || !Number.isInteger(index) || index < 0 || !['inputs','outputs'].includes(kind)) return false;
+  const contains = prefix => path === prefix || path.startsWith(`${prefix}.`) || path.startsWith(`${prefix}[`);
+  if (contains(`transaction.${kind}[${index}]`)) return true;
+  if (kind === 'outputs') return contains(`transaction.outputs_data[${index}]`);
+  const input = request?.transaction?.inputs?.[index];const cell = resolveCell(request, input?.previous_output);
+  const cellIndex = cell && Array.isArray(request?.context?.cells) ? request.context.cells.indexOf(cell) : -1;
+  return cellIndex >= 0 && contains(`context.cells[${cellIndex}]`);
+}
+
 function assertLists(request, kind) {
   if (!object(request) || !object(request.transaction) || !Array.isArray(request.transaction[kind])) throw new Error(`transaction.${kind} must be an array; edit the JSON to restore its structure.`);
   if (kind === 'outputs' && (!Array.isArray(request.transaction.outputs_data) || request.transaction.outputs_data.length !== request.transaction.outputs.length)) throw new Error('Output and output-data counts differ. Edit the JSON first; the editor will not silently repair them.');

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { resolveCell, scriptChoices, inspectRequest, mutateCellList } from '../../web/workbench-model.js';
+import { resolveCell, scriptChoices, inspectRequest, diagnosticMatchesCell, mutateCellList } from '../../web/workbench-model.js';
 const fixture = JSON.parse(await readFile(new URL('../../fixtures/submitted-valid.json', import.meta.url), 'utf8')).request;
 const request = () => structuredClone(fixture);
 
@@ -171,4 +171,10 @@ test('linking an existing header rejects duplicate computed hashes',async()=>{
 
 test('input reference updates all aliases without losing metadata or fetching origin',async()=>{
  const {changeInputReference}=await import('../../web/workbench-model.js');const r=request();r.transaction.cell_deps[0].out_point=structuredClone(r.transaction.inputs[0].previous_output);r.transaction.inputs[0].previous_output.extra='input';r.transaction.cell_deps[0].out_point.extra='dep';r.context.cells[0].out_point.extra='cell';const origin=structuredClone(r.context.cells[0].transaction_info);const point={tx_hash:`0x${'ab'.repeat(32)}`,index:'0x2'};const next=changeInputReference(r,0,point);assert.deepEqual(next.transaction.inputs[0].previous_output,{...point,extra:'input'});assert.deepEqual(next.transaction.cell_deps[0].out_point,{...point,extra:'dep'});assert.deepEqual(next.context.cells[0].out_point,{...point,extra:'cell'});assert.deepEqual(next.context.cells[0].transaction_info,origin);assert.notDeepEqual(r.transaction.inputs[0].previous_output,next.transaction.inputs[0].previous_output);assert.throws(()=>changeInputReference(r,0,r.context.cells[1].out_point),/already uses/);assert.throws(()=>changeInputReference(r,0,{tx_hash:'bad',index:'0x0'}),/32-byte/);
+});
+
+
+test('diagnostics map exact entity paths and resolved context cells to their own cards',()=>{
+ let req=mutateCellList(request(),'inputs','add');req=mutateCellList(req,'outputs','add');const input1cell=req.context.cells.indexOf(resolveCell(req,req.transaction.inputs[1].previous_output));
+ assert.equal(diagnosticMatchesCell('transaction.outputs_data[0]','inputs',0,req),false);assert.equal(diagnosticMatchesCell('transaction.outputs_data[0]','outputs',0,req),true);assert.equal(diagnosticMatchesCell('transaction.outputs_data[10]','outputs',1,req),false);assert.equal(diagnosticMatchesCell('transaction.inputs[1].since','inputs',1,req),true);assert.equal(diagnosticMatchesCell('transaction.inputs[1].since','inputs',0,req),false);assert.equal(diagnosticMatchesCell(`context.cells[${input1cell}].output.lock.args`,'inputs',1,req),true);assert.equal(diagnosticMatchesCell(`context.cells[${input1cell}].output.lock.args`,'inputs',0,req),false);assert.equal(diagnosticMatchesCell('transaction.outputs[1].lock.args','outputs',1,req),true);assert.equal(diagnosticMatchesCell('transaction.outputs[1].lock.args','inputs',1,req),false);
 });

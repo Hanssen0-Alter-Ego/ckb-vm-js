@@ -9,6 +9,10 @@ let loading = false;
 let dirty = false;
 let loadedSample = null;
 let sourceName = 'None';
+const exampleMenu=document.querySelector('.example-menu');
+const exampleSummary=exampleMenu.querySelector('summary');
+document.addEventListener('pointerdown',event=>{if(exampleMenu.open&&!exampleMenu.contains(event.target))exampleMenu.open=false;});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&exampleMenu.open&&!document.querySelector('dialog[open]')){event.preventDefault();exampleMenu.open=false;exampleSummary.focus();}});
 function showSource() { $('loaded-source').textContent = `Current request: ${sourceName}${dirty ? ' (edited)' : ''}`; }
 const size = (text) => new TextEncoder().encode(text).length;
 const workbench = createWorkbench($('workbench'), {
@@ -60,7 +64,7 @@ async function loadSample(initial = false) {
     $('explanation').textContent = 'No verification has run for this input.';
     $('result').textContent = 'No verification has run for this input.';
     $('summary').textContent = 'Synthetic fixture loaded. Inspect the supplied consensus before running.';
-    loadedSample = $('sample').value; sourceName = $('sample').selectedOptions[0]?.textContent ?? 'Example'; dirty = false; showSource(); status('Ready');
+    loadedSample = $('sample').value; sourceName = $('sample').selectedOptions[0]?.textContent ?? 'Example'; dirty = false; showSource(); status('Ready');if(!initial)exampleMenu.open=false;
   } catch (error) { $('sample').value = loadedSample ?? ''; fail(error, 'Sample error'); }
   finally { loading = false; workbench.refresh(true); busy(false); }
 }
