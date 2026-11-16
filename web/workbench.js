@@ -9,6 +9,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
   let disabled = false;
   let selection = null;
   let sessionBaseline = null;
+  let depSubsession = null;
   const expanded = new Set();
   let restoreFocus;
   const identities={inputs:[],outputs:[]};
@@ -19,6 +20,10 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
   const scriptIds=new Map();
   const draftNames=new Map();
   let nextDraft=0;
+  const captureState=()=>({request:capture(),inputs:[...identities.inputs],outputs:[...identities.outputs],resolved:new Map(resolvedIds),drafts:new Map(draftNames),placeholders:new Set(placeholderPoints),witnessNotice,nextDraft,nextIdentity});
+  function restoreState(state){restore(state.request);identities.inputs=[...state.inputs];identities.outputs=[...state.outputs];resolvedIds.clear();for(const [key,value] of state.resolved)resolvedIds.set(key,value);draftNames.clear();for(const [key,value] of state.drafts)draftNames.set(key,value);placeholderPoints.clear();for(const key of state.placeholders)placeholderPoints.add(key);witnessNotice=state.witnessNotice;nextDraft=state.nextDraft;nextIdentity=state.nextIdentity;}
+  function beginDepEdit(index,isNew=false){depSubsession={baseline:captureState(),index,isNew,scroll:root.querySelector('dialog[open]')?.scrollTop??0};}
+  function returnToDeps(discard=false,removed=false){const child=depSubsession;if(!child)return;depSubsession=null;if(discard)restoreState(child.baseline);selection='deps';refresh();const dialog=root.querySelector('dialog[open]');if(!dialog)return;dialog.scrollTop=child.scroll;const cards=[...dialog.querySelectorAll('[aria-label]')];const target=!(discard&&child.isNew)&&!removed?cards.find(n=>n.getAttribute('aria-label').startsWith(`Edit cell dep index ${child.index} ·`)):null;(target??cards.find(n=>n.getAttribute('aria-label')==='New resolved cell'))?.focus({preventScroll:true});}
   const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
   const button = (label, action, parent) => { const b = el('button', label, 'secondary'); b.type = 'button'; b.disabled = disabled; b.onclick = () => { if (valid()) { try { action(); } catch (e) { error.textContent = e.message; } } }; parent.append(b); return b; };
   const commit = (fn, render = true) => { const next = structuredClone(read()); fn(next); write(next); if (render && ![...root.querySelectorAll('input,textarea,select')].some(n => !n.checkValidity())) refresh(); };
@@ -142,7 +147,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     return ref;
   }
   function refresh(resetIdentity=false) {
-    if(resetIdentity){identities.inputs=[];identities.outputs=[];resolvedIds.clear();draftNames.clear();placeholderPoints.clear();witnessNotice='';nextDraft=0;selection=null;sessionBaseline=null;}
+    if(resetIdentity){identities.inputs=[];identities.outputs=[];resolvedIds.clear();draftNames.clear();placeholderPoints.clear();witnessNotice='';nextDraft=0;selection=null;sessionBaseline=null;depSubsession=null;}
     const opened = new Set([...root.querySelectorAll('details[open]')].map(d => d.querySelector('summary')?.textContent));
     const activeLabel = root.querySelector('dialog[open]')?.contains(document.activeElement) ? document.activeElement.closest('label')?.firstChild?.textContent : null;
     root.querySelector('dialog')?.close();
@@ -193,9 +198,9 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
         const ref=referenceFields(row,`Cell dep index ${i}`,dep.out_point,cell,i,'dep');
         if(cell)structuredFields(ref,cell.transaction_info,['context','cells',String(r.context.cells.indexOf(cell)),'transaction_info'],'Origin');
         row.append(el('p','Edits affect this shared resolved cell wherever referenced. Removing a dep does not delete context. Dep-group membership bytes are never rewritten automatically.','hint'));
-        button(`Remove cell dep index ${i}`,()=>commit(q=>{q.transaction.cell_deps.splice(i,1);selection='deps';}),row);
+        button(`Remove cell dep index ${i}`,()=>{if(depSubsession){commit(q=>{q.transaction.cell_deps.splice(i,1);},false);returnToDeps(false,true);}else commit(q=>{q.transaction.cell_deps.splice(i,1);selection='deps';});},row);
       });
-      button('New resolved cell',()=>{const next=addDependencyCell(read());write(next);placeholderPoints.add(identityKey(next.transaction.cell_deps.at(-1).out_point));selection=`dep:${next.transaction.cell_deps.length-1}`;refresh();},deps);
+      const newDep=button('New resolved cell',()=>{if(selection==='deps')beginDepEdit(r.transaction.cell_deps.length,true);const next=addDependencyCell(read());write(next);placeholderPoints.add(identityKey(next.transaction.cell_deps.at(-1).out_point));selection=`dep:${next.transaction.cell_deps.length-1}`;refresh();const title=root.querySelector('dialog[open] #inspector-title');if(title){title.tabIndex=-1;title.focus({preventScroll:true});}},deps);newDep.setAttribute('aria-label','New resolved cell');
       const select=el('select');select.disabled=disabled;select.setAttribute('aria-label','Resolved cell to add as dependency');r.context.cells.forEach((c,i)=>{const o=el('option',`${i+1} · ${c?.out_point?.tx_hash}:${c?.out_point?.index}`);o.value=String(i);select.append(o);});deps.append(select);
       button('Add selected cell as code dependency',()=>commit(q=>{const c=q.context.cells[Number(select.value)];if(!c?.out_point)throw new Error('Select a resolved cell with an outpoint.');q.transaction.cell_deps.push({out_point:structuredClone(c.out_point),dep_type:'code'});}),deps);
     }
@@ -307,15 +312,16 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     const rail=el('div',undefined,'object-rail'); snapshot.append(rail);
     const depRail=el('div',undefined,'dep-rail'); depRail.append(el('span','Cell dependencies','rail-label'));rail.append(depRail);
     const depCards=[...deps.querySelectorAll(':scope > .wb-card')];
-    const manage=button('Manage',()=>open('deps',manage),depRail);manage.setAttribute('aria-label','Manage cell deps');
+    const depItems=el('div',undefined,'dep-items');depRail.append(depItems);
     depCards.forEach((editor,i)=>{
       const point=r.transaction.cell_deps[i]?.out_point;const description=outpointName(point,r);const key=`dep:${i}`;editors.set(key,[`Cell dep index ${i}`,editor,description,point]);
       const kind=r.transaction.cell_deps[i]?.dep_type;const kindLabel=kind==='code'?'Code':kind==='dep_group'?'Dep group':'Invalid type';const b=el('button',`#${i} · ${kindLabel} · ${description}${description.startsWith('Local placeholder')?' · local snapshot only':''}`,'dep-dot dep-kind');b.type='button';b.disabled=disabled;
       if(kind==='dep_group')b.classList.add('dep-group');
       b.setAttribute('aria-label',`Cell dep index ${i} · ${kind??'invalid'} · ${description}${description.startsWith('Local placeholder')?' · local snapshot only':''} · open details`);
-      b.title=`${b.getAttribute('aria-label')} · ${point?.tx_hash??''}:${point?.index??''}`;b.onclick=()=>open(key,b);depRail.append(b);
+      b.title=`${b.getAttribute('aria-label')} · ${point?.tx_hash??''}:${point?.index??''}`;b.onclick=()=>open(key,b);depItems.append(b);
     });
-    if(!depCards.length)depRail.append(el('span','None','hint'));
+    if(!depCards.length)depItems.append(el('span','None','hint'));
+    const manage=button('Manage',()=>open('deps',manage),depRail);manage.setAttribute('aria-label','Manage cell deps');
     const depManager=el('section');depManager.append(el('p','Cell dependencies are cells scripts can use. A dep group contains references to other cells.','hint'));
     depCards.forEach((editor,i)=>{const dep=r.transaction.cell_deps[i];const cell=resolveCell(r,dep?.out_point);const b=cellPreview(cell,outpointName(dep?.out_point,r),i,'Cell dep',()=>open(`dep:${i}`,b),dep?.out_point);const kind=dep?.dep_type==='code'?'Code':dep?.dep_type==='dep_group'?'Dep group':'Invalid type';b.querySelector('.cell-number').append(` · ${kind}`);b.setAttribute('aria-label',`Edit cell dep index ${i} · ${kind} · ${outpointName(dep?.out_point,r)}`);depManager.append(b);});
     [...deps.children].filter(n=>!depCards.includes(n)&&n.tagName!=='H3').forEach(n=>depManager.append(n));
@@ -390,8 +396,9 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     const settingsButton=button('Settings',()=>open('settings',settingsButton),controls);settingsButton.setAttribute('aria-label','Settings');
     function objectDots(label,key,items,manager,entries,itemLabel){
       const row=el('div',undefined,'dep-rail');row.append(el('span',label,'rail-label'));rail.append(row);
-      entries.forEach(([title,editor],i)=>{const id=`${key}:${i}`;editors.set(id,[title,editor]);const b=el('button',`#${i}`,'dep-dot reference-dot');b.type='button';b.disabled=disabled;b.setAttribute('aria-label',`${itemLabel} index ${i} · open details`);b.title=b.getAttribute('aria-label');b.onclick=()=>open(id,b);row.append(b);});
-      if(!entries.length)row.append(el('span',Array.isArray(items)?'None':'Invalid array','hint'));
+      const itemsWrap=el('div',undefined,'dep-items');row.append(itemsWrap);
+      entries.forEach(([title,editor],i)=>{const id=`${key}:${i}`;editors.set(id,[title,editor]);const b=el('button',`#${i}`,'dep-dot reference-dot');b.type='button';b.disabled=disabled;b.setAttribute('aria-label',`${itemLabel} index ${i} · open details`);b.title=b.getAttribute('aria-label');b.onclick=()=>open(id,b);itemsWrap.append(b);});
+      if(!entries.length)itemsWrap.append(el('span',Array.isArray(items)?'None':'Invalid array','hint'));
       editors.set(key,[label,manager]);const manage=button('Manage',()=>open(key,manage),row);manage.setAttribute('aria-label',`Manage ${key==='headers'?'header deps':label.toLowerCase()}`);
     }
     root.replaceChildren(error,snapshot);
@@ -399,8 +406,10 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     const dialog=el('dialog',undefined,'inspector');dialog.setAttribute('aria-labelledby','inspector-title');root.append(dialog);
     function open(key,trigger) {
       if(!valid())return;
-      if(trigger)restoreFocus=trigger.getAttribute('aria-label');
-      if(sessionBaseline===null)sessionBaseline={request:capture(),inputs:[...identities.inputs],outputs:[...identities.outputs],resolved:new Map(resolvedIds),drafts:new Map(draftNames),placeholders:new Set(placeholderPoints),witnessNotice,nextDraft};
+      const enteringDep=selection==='deps'&&/^dep:[0-9]+$/.test(key)&&!!trigger;
+      if(enteringDep)beginDepEdit(Number(key.split(':')[1]));
+      else if(trigger)restoreFocus=trigger.getAttribute('aria-label');
+      if(sessionBaseline===null)sessionBaseline=captureState();
       selection=key;
       const entry=editors.get(key);if(!entry){selection=null;return;}
       // Return dependency editors to their management container before switching.
@@ -411,11 +420,12 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       const top=el('div',undefined,'inspector-heading');const title=el('h2',entry[0]);title.id='inspector-title';top.append(title);
       const close=el('button','Save','secondary');close.type='button';close.onclick=()=>finish();top.append(close);const discard=el('button','Cancel changes','secondary discard-draft');discard.type='button';discard.onclick=()=>finish(true);top.append(discard);dialog.append(top);if(entry[2]){const identity=el('p',entry[2],'inspector-identity');identity.id='inspector-identity';dialog.append(identity);if(entry[2].startsWith('Local placeholder'))dialog.append(el('p','Local snapshot only.','hint'));dialog.setAttribute('aria-describedby',identity.id);}else dialog.removeAttribute('aria-describedby');
       const point=entry[3];if(point&&typeof point==='object'&&!Array.isArray(point)&&typeof point.tx_hash==='string'&&typeof point.index==='string'){const full=el('details',undefined,'outpoint-details');full.append(el('summary','Full outpoint · select to copy'),el('p','An outpoint identifies a cell by its creating transaction hash and output index. RPC hex uses a 0x prefix, for example 0x2 means 2.','hint'));const hashLabel=el('label','Transaction hash','wb-field');const hash=el('textarea');hash.readOnly=true;hash.value=point.tx_hash;hash.setAttribute('aria-label','Transaction hash (read only)');hashLabel.append(hash);const indexLabel=el('label','Output index (RPC hex)','wb-field');const index=el('input');index.readOnly=true;index.value=point.index;index.setAttribute('aria-label','Output index (read only)');indexLabel.append(index);full.append(hashLabel,indexLabel);dialog.append(full);}
-      dialog.append(el('p','Save keeps changes. Cancel restores the request from when this editor was opened.','hint'),error,entry[1]);
+      dialog.append(el('p',depSubsession&&/^dep:[0-9]+$/.test(key)?'Save returns to cell dependencies. Cancel restores this cell edit.':'Save keeps changes. Cancel restores the request from when this editor was opened.','hint'),error,entry[1]);
       dialog.querySelectorAll('[data-default-open]').forEach(d=>{d.open=true;});
       dialog.querySelectorAll('input,select,textarea,button').forEach(n=>{n.disabled=disabled||n.dataset.boundary==='true';});
       if(!dialog.open)dialog.showModal();
-      if(trigger&&/^headers:[0-9]+$/.test(key)){title.tabIndex=-1;title.focus({preventScroll:true});}
+      if(enteringDep){dialog.scrollTop=0;}
+      if(enteringDep||(trigger&&/^headers:[0-9]+$/.test(key))){title.tabIndex=-1;title.focus({preventScroll:true});}
     }
     function returnFocus(){
       if(!restoreFocus)return;const nodes=[...root.querySelectorAll('[aria-label]')];let target=nodes.find(n=>n.getAttribute('aria-label')===restoreFocus);
@@ -424,7 +434,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       const header=/^(?:Open header dep index ([0-9]+)|Header dep index ([0-9]+) · open details)$/.exec(restoreFocus);if(!target&&header){const index=header[1]??header[2];target=nodes.find(n=>n.getAttribute('aria-label')===`Header dep index ${index} · open details`)??nodes.find(n=>n.getAttribute('aria-label')==='Manage header deps');}
       if(!target)target=nodes.find(n=>n.getAttribute('aria-label')==='Manage cell deps');target?.focus();
     }
-    function finish(discard=false){if(!discard&&!valid())return;selection=null;dialog.close();if(discard&&sessionBaseline!==null){restore(sessionBaseline.request);identities.inputs=sessionBaseline.inputs;identities.outputs=sessionBaseline.outputs;resolvedIds.clear();for(const [key,value] of sessionBaseline.resolved)resolvedIds.set(key,value);draftNames.clear();for(const [key,value] of sessionBaseline.drafts)draftNames.set(key,value);placeholderPoints.clear();for(const key of sessionBaseline.placeholders)placeholderPoints.add(key);witnessNotice=sessionBaseline.witnessNotice;nextDraft=sessionBaseline.nextDraft;}sessionBaseline=null;refresh();returnFocus();}
+    function finish(discard=false){if(!discard&&!valid())return;if(depSubsession&&/^dep:[0-9]+$/.test(selection)){returnToDeps(discard);return;}selection=null;dialog.close();if(discard&&sessionBaseline!==null)restoreState(sessionBaseline);sessionBaseline=null;depSubsession=null;refresh();returnFocus();}
     dialog.addEventListener('cancel',e=>{e.preventDefault();const draft=dialog.querySelector('.header-draft');if(draft)draft.back();else finish(true);});
     if(selection)open(selection);
   }
