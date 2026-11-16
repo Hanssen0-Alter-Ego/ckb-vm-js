@@ -65,3 +65,19 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 .header-sort{display:flex;flex-direction:column;gap:2px}.inspector .header-sort button{min-width:44px;min-height:44px;padding:4px;font-size:18px}.header-list-row{gap:10px}@media(max-width:380px){.header-list-row{flex-wrap:wrap}.header-list-info{flex-basis:100%}.header-list-row .header-sort{flex-direction:row}}
 
 .local-drafts{margin:0 0 14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.local-drafts p{font-size:12px}.draft-status{font-size:12px;color:#d4dfcd;margin:0 0 4px}.draft-row{display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:12px}.draft-row span{flex:1;overflow-wrap:anywhere}.draft-row button{flex:none}@media(max-width:480px){.draft-row{flex-wrap:wrap}.draft-row span{flex-basis:100%}}
+
+/* Shared action geometry: equal hit areas with breathing room inside cards. */
+.cell-row{grid-template-columns:minmax(0,1fr) 76px;overflow:visible}
+.list-tools{gap:6px;padding:10px;align-items:stretch}
+.list-tools button,.list-tools .remove-cell{width:56px;min-width:56px;height:44px;min-height:44px;margin:0;padding:4px}
+.cell-row .cell-preview{border-radius:6px}
+.header-sort{gap:6px}
+.inspector .header-sort button{width:56px;height:44px}
+.inspector .header-sort .remove-cell{font-size:10px}
+.context-list-entry{display:flex;align-items:flex-start;gap:10px;border-top:1px solid var(--line);padding:10px 0}
+.context-list-entry>details,.context-list-entry>.wb-field,.context-list-entry>p{flex:1;min-width:0;border:0;margin:0}
+.context-list-entry>button{flex:none;margin:0;max-width:120px}
+/* Open disclosure contents must not clip borders or keyboard focus rings. */
+.inspector details[open]::details-content{overflow:visible;padding-bottom:4px}
+.inspector{overscroll-behavior:contain}
+@media(max-width:420px){.header-list-row{flex-wrap:wrap}.header-list-info{flex-basis:100%}.header-sort{flex-direction:row}.context-list-entry{flex-wrap:wrap}}

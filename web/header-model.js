@@ -13,25 +13,34 @@ export function linkExistingHeader(request, header){
   if(!Array.isArray(request?.transaction?.header_deps))throw new Error('Header dependencies must be an array.');
   const hash=headerHash(header);
   if(headerCandidates(request).filter(candidate=>candidate.hash===hash).length!==1)throw new Error('This header is missing or ambiguous in the supplied context.');
-  const next=structuredClone(request);next.transaction.header_deps.push(hash);return next;
+  const next=structuredClone(request);if(!next.transaction.header_deps.some(value=>typeof value==='string'&&value.toLowerCase()===hash))next.transaction.header_deps.push(hash);return next;
 }
 
-// Changing header contents creates a separate supplied header, leaving all old
-// references intact. Only the selected dependency is re-linked.
-export function addHeaderFromFields(request,header,{replaceIndex=null,extension='unspecified',extensionData=''}={}){
+// Reuse matching supplied context or create a separate header. Preserve all old
+// references; editing a copy only re-links the selected dependency.
+export function addHeaderFromFields(request,header,{replaceIndex=null,extension='unspecified',extensionData='',addDependency=true}={}){
   if(!Array.isArray(request?.transaction?.header_deps)||!Array.isArray(request?.context?.headers))throw new Error('Header dependencies and supplied headers must be arrays.');
   if(replaceIndex!==null&&(!Number.isInteger(replaceIndex)||replaceIndex<0||replaceIndex>=request.transaction.header_deps.length))throw new Error('The selected header dependency no longer exists.');
   const hash=headerHash(header);const old=replaceIndex===null?null:request.transaction.header_deps[replaceIndex];
   const same=typeof old==='string'&&old.toLowerCase()===hash;
-  if(!same&&headerCandidates(request).some(candidate=>candidate.hash===hash))throw new Error('That header is already supplied. Choose it from the existing headers instead.');
+  if(addDependency&&replaceIndex!==null&&!same&&request.transaction.header_deps.some((value,index)=>index!==replaceIndex&&typeof value==='string'&&value.toLowerCase()===hash))throw new Error('This header is already linked at another dependency index. Remove this dependency instead, or choose different header fields; nothing was changed.');
+  const matches=headerCandidates(request).filter(candidate=>candidate.hash===hash);
+  if(matches.length>1)throw new Error('Multiple supplied headers share this hash. Remove the duplicate context entry before reusing it.');
+  // Hash identity covers protocol fields, not arbitrary caller metadata.
+  const fields=new Set(['version','compact_target','timestamp','number','epoch','parent_hash','transactions_root','proposals_hash','extra_hash','dao','nonce','hash']);
+  if(matches.length){for(const [key,value] of Object.entries(header)){if(!fields.has(key)&&JSON.stringify(value)!==JSON.stringify(matches[0].header[key]))throw new Error(`This hash already exists with different ${key} metadata. Reconcile that metadata in JSON before reusing the header; nothing was changed.`);}}
+
   if(!['unspecified','none','bytes'].includes(extension))throw new Error('Choose an extension option.');
   if(extension==='bytes'&&!/^0x(?:[0-9a-f]{2})*$/i.test(extensionData))throw new Error('Extension data must be even-length hex bytes.');
   const next=structuredClone(request);
-  if(!same){const copy=structuredClone(header);if(Object.hasOwn(copy,'hash'))copy.hash=hash;next.context.headers.push(copy);if(replaceIndex===null)next.transaction.header_deps.push(hash);else next.transaction.header_deps[replaceIndex]=hash;}
+  if(!matches.length){const copy=structuredClone(header);if(Object.hasOwn(copy,'hash'))copy.hash=hash;next.context.headers.push(copy);}
+  if(addDependency&&!same){if(replaceIndex!==null)next.transaction.header_deps[replaceIndex]=hash;else if(!next.transaction.header_deps.some(value=>typeof value==='string'&&value.toLowerCase()===hash))next.transaction.header_deps.push(hash);}
   if(extension!=='unspecified'){
     if(!Array.isArray(next.context.extensions))throw new Error('Extensions must be an array; existing data was not changed.');
-    if(next.context.extensions.some(item=>typeof item?.block_hash==='string'&&item.block_hash.toLowerCase()===hash))throw new Error('Extension information already exists for this hash; it was not overwritten.');
-    next.context.extensions.push({block_hash:hash,data:extension==='none'?null:extensionData});
+    const records=next.context.extensions.filter(item=>typeof item?.block_hash==='string'&&item.block_hash.toLowerCase()===hash);
+    const data=extension==='none'?null:extensionData;
+    if(records.length>1||records.length===1&&(typeof data==='string'?records[0].data?.toLowerCase?.()!==data.toLowerCase():records[0].data!==data))throw new Error('Different or ambiguous extension information already exists for this hash. Use Extension information to edit it; nothing was changed.');
+    if(!records.length)next.context.extensions.push({block_hash:hash,data});
   }
   return next;
 }

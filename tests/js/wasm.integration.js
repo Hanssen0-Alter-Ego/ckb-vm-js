@@ -54,3 +54,10 @@ test('real WASM accepts correct optional RPC hashes and rejects mismatches and u
  for(const path of ['transaction','tip','candidate','extra']){const request=structuredClone(withHashes);const item=path==='transaction'?request.transaction:path==='tip'?request.context.tip_header:path==='candidate'?request.context.verification.candidate_header:request.context.headers[0];item.hash=`0x${'00'.repeat(32)}`;const result=await verifier.verify(request);assert.equal(result.error.code,'InvalidRequest',path);assert.match(result.error.message,/hash does not match/,path);}
  for(const path of ['transaction','tip'])for(const variant of ['unexpected','null','malformed']){const request=structuredClone(base);const item=path==='transaction'?request.transaction:request.context.tip_header;if(variant==='unexpected')item.unknown='bad';else item.hash=variant==='null'?null:'0x12';const result=await verifier.verify(request);assert.equal(result.error.code,'InvalidRequest',`${path} ${variant}`);}
 });
+
+
+test('reusing a tip header avoids duplicate context and still verifies in real WASM',async()=>{
+ const {addHeaderFromFields,linkExistingHeader}=await import('../../web/header-model.js');const base=JSON.parse(await readFile(new URL('../../fixtures/submitted-valid.json',import.meta.url),'utf8')).request;
+ const duplicate=structuredClone(base);duplicate.context.headers.push(structuredClone(base.context.tip_header));const rejected=await verifier.verify(duplicate);assert.equal(rejected.ok,false);assert.match(rejected.error.message,/duplicate header/);
+ const next=addHeaderFromFields(base,base.context.tip_header,{extension:'none'});const repeated=addHeaderFromFields(linkExistingHeader(next,next.context.tip_header),next.context.tip_header,{extension:'none'});assert.deepEqual(repeated,next);assert.deepEqual(next.context,base.context);const result=await verifier.verify(repeated);assert.equal(result.ok,true,JSON.stringify(result));
+});
