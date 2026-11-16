@@ -19,3 +19,5 @@
 @supports (interpolate-size:allow-keywords) and (selector(details::details-content)){@media (prefers-reduced-motion:no-preference){#advanced,.boundaries,.input-help,.rail-help,.inspector details{interpolate-size:allow-keywords}#advanced::details-content,.boundaries::details-content,.input-help::details-content,.rail-help::details-content,.inspector details::details-content{block-size:0;overflow:clip;opacity:0;transition:block-size 180ms ease,opacity 140ms ease,content-visibility 180ms allow-discrete}#advanced[open]::details-content,.boundaries[open]::details-content,.input-help[open]::details-content,.rail-help[open]::details-content,.inspector details[open]::details-content{block-size:auto;opacity:1}}}
 
 .header-draft{border:1px solid var(--line);border-radius:8px;padding:14px;margin:14px 0}.header-draft-actions{display:flex;gap:8px;flex-wrap:wrap}.header-draft .hint{overflow-wrap:anywhere}
+.cell-row:focus-within{border-left-color:var(--script,var(--line))}
+@media(max-width:480px){.cell-columns{grid-template-columns:1fr}.cell-meta{flex-direction:row;flex-wrap:wrap}.cell-identity{font-size:11px}.script-chip{font-size:11px}}
