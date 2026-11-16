@@ -27,7 +27,7 @@ export function addHeaderFromFields(request,header,{replaceIndex=null,extension=
   if(!['unspecified','none','bytes'].includes(extension))throw new Error('Choose an extension option.');
   if(extension==='bytes'&&!/^0x(?:[0-9a-f]{2})*$/i.test(extensionData))throw new Error('Extension data must be even-length hex bytes.');
   const next=structuredClone(request);
-  if(!same){next.context.headers.push(structuredClone(header));if(replaceIndex===null)next.transaction.header_deps.push(hash);else next.transaction.header_deps[replaceIndex]=hash;}
+  if(!same){const copy=structuredClone(header);if(Object.hasOwn(copy,'hash'))copy.hash=hash;next.context.headers.push(copy);if(replaceIndex===null)next.transaction.header_deps.push(hash);else next.transaction.header_deps[replaceIndex]=hash;}
   if(extension!=='unspecified'){
     if(!Array.isArray(next.context.extensions))throw new Error('Extensions must be an array; existing data was not changed.');
     if(next.context.extensions.some(item=>typeof item?.block_hash==='string'&&item.block_hash.toLowerCase()===hash))throw new Error('Extension information already exists for this hash; it was not overwritten.');
