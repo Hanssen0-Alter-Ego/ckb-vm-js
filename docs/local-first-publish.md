@@ -12,17 +12,17 @@
 - 安装 [Node.js 24](https://nodejs.org/en/download) 和 [rustup](https://rustup.rs/)，重新打开终端后确认 `node --version`、`npm --version`、`rustup --version` 可用。Rust 的具体版本和组件由仓库 `rust-toolchain.toml` 固定；不要仅安装发行版的旧 cargo。
 - 构建会下载 Git 子模块、Cargo/npm 依赖和浏览器，需要网络及数 GB 可用磁盘空间。普通 Node/npm 包消费者不需要这些编译工具。
 
-## 1. 克隆准备分支
+## 1. 克隆 main
 
 ```sh
-git clone --branch prepare/npm-first-release --recurse-submodules \
+git clone --branch main --recurse-submodules \
   https://github.com/Hanssen0-Alter-Ego/ckb-vm-js.git
 cd ckb-vm-js
 git rev-parse HEAD
 git submodule status --recursive
 ```
 
-将 HEAD 与交接中报告的远端完整 SHA 对照。不要切回尚未集成发布准备改动的 main。若最初忘了 `--recurse-submodules`，补跑 `git submodule update --init --recursive`。以下原生对照构建要求**全新、尚未执行 prepare.sh 的子模块**；脚本会在后续有意打补丁，之后看到两个 vendor 子模块有修改属于预期，不要把它们作为新 gitlink 提交。
+将 HEAD 与最终发布交接中报告的 main 完整 SHA 对照；并行开发可能继续推进 main，不要把未经确认的新提交自动当作已验收发布对象。若最初忘了 `--recurse-submodules`，补跑 `git submodule update --init --recursive`。以下原生对照构建要求**全新、尚未执行 prepare.sh 的子模块**；脚本会在后续有意打补丁，之后看到两个 vendor 子模块有修改属于预期，不要把它们作为新 gitlink 提交。
 
 ## 2. 安装固定工具链和 WASM clang
 
@@ -153,7 +153,7 @@ npm view ckb-vm-js@0.2.0 version dist.integrity --registry=https://registry.npmj
 
 ## 6. 后续交给 Trusted Publisher
 
-先由协调者把准备分支集成到 main，并核对 CI；本地首发不要求把 0.2.0 的 Release 再发布一遍。GitHub 管理员创建/检查 **`npm-publish`** environment，配置 required reviewers，并允许版本 tag `v*`。
+发布准备已集成到 main；最终发布前仍由协调者核对前端收尾、目标提交及 CI。本地首发不要求把 0.2.0 的 Release 再发布一遍。GitHub 管理员创建/检查 **`npm-publish`** environment，配置 required reviewers，并允许版本 tag `v*`。
 
 在 npm 包 Settings → Trusted Publisher 中选择 GitHub Actions：
 
