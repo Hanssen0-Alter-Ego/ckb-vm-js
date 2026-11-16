@@ -19,11 +19,17 @@ export function guidedRequest(base, amount, budget) {
   request.max_cycles = `0x${BigInt(budget).toString(16)}`;
   return request;
 }
-export function explain(result) {
+export function explain(result, request) {
   if (result.ok) return result.scope === 'script_group'
     ? 'The selected script accepted this snapshot. Other scripts and the complete transaction were not checked.'
     : `The supplied transaction passed. Its inputs, outputs and scripts satisfied the supplied rules.${result.fee !== undefined ? `\nFee in this snapshot: ${ckb(result.fee)} CKB.` : ''}\nThis does not check whether the cells really exist or are unspent on a network.`;
   const error = `${result.error?.code ?? ''} ${result.error?.message ?? ''}`;
+  const missingExtension=result.error?.code==='MissingContext' && /^explicit extension data or null required for (0x[0-9a-f]{64})$/i.exec(result.error?.message ?? '');
+  if(missingExtension){
+    const hash=missingExtension[1];const refs=Array.isArray(request?.transaction?.header_deps)?request.transaction.header_deps.flatMap((h,i)=>typeof h==='string'&&h.toLowerCase()===hash.toLowerCase()?[`Header dep index ${i}`]:[]):[];
+    const where=refs.length?`${refs.join(', ')} (${hash})`:`block ${hash} (a header dependency or supplied cell origin)`;
+    return `Missing extension information for ${where}. The snapshot must explicitly supply extension bytes or assert no extension (null). For a header dependency, open its details and choose Extension information. Unspecified does not mean no extension.`;
+  }
   if (/OutputsSumOverflow|OutputsCapacity|CapacityOverflow|outputs capacity.*inputs|outputs sum/i.test(error)) return 'The new cells contain more CKB than the inputs provide. A transaction cannot create extra CKB. Lower the new cell capacity and run again.';
   if (/ExceededMaximumCycles|CyclesExceeded|cycles.*exceed|exceed.*cycles/i.test(error)) return 'The computation budget ran out. The VM could not finish within this limit. Try the normal cycle budget; this does not change the transaction fee.';
   if (/Script.*ValidationFailure|ValidationFailure|script_failure/i.test(error)) return 'A script rejected the transaction. In the “Rejecting lock” example, the toy lock intentionally returns a failure. A valid balance alone is not enough.';

@@ -25,3 +25,8 @@ test('explanations follow returned engine results rather than chosen experiment'
   assert.match(explain({ok:true,scope:'script_group'}),/were not checked/);
   assert.match(explain({ok:true,scope:'transaction',fee:'0x1'}),/0.00000001 CKB/);
 });
+
+
+test('missing extension explanation identifies the actual header without guessing null',()=>{
+ const hash=`0x${'ab'.repeat(32)}`;const result={ok:false,error:{code:'MissingContext',message:`explicit extension data or null required for ${hash}`}};const explanation=explain(result,{transaction:{header_deps:[hash]}});assert.match(explanation,/Header dep index 0/);assert.ok(explanation.includes(hash));assert.match(explanation,/Unspecified does not mean no extension/);assert.match(explain(result,{transaction:{header_deps:[]}}),/supplied cell origin/);assert.match(explain({ok:false,error:{code:'Other',message:result.error.message}}),/Full engine response/);
+});

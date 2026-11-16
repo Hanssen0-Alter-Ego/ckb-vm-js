@@ -23,7 +23,8 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
   const button = (label, action, parent) => { const b = el('button', label, 'secondary'); b.type = 'button'; b.disabled = disabled; b.onclick = () => { if (valid()) { try { action(); } catch (e) { error.textContent = e.message; } } }; parent.append(b); return b; };
   const commit = (fn, render = true) => { const next = structuredClone(read()); fn(next); write(next); if (render && ![...root.querySelectorAll('input,textarea,select')].some(n => !n.checkValidity())) refresh(); };
   function field(parent, label, value, apply, { area = false, options, parse = v => v } = {}) {
-    const wrap = el('label', label, 'wb-field');
+    const visibleLabel=label.replace(/^(?:Input|Output|Cell dep) index \d+ /,'');
+    const wrap = el('label', visibleLabel, 'wb-field');
     const input = el(options ? 'select' : area ? 'textarea' : 'input');
     if (options) for (const [v, title] of options) { const o = el('option', title); o.value = v; input.append(o); }
     input.value = value ?? ''; input.disabled = disabled; input.spellcheck = false; input.setAttribute('aria-label', label);
@@ -95,12 +96,13 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
   function cellPreview(cell,description,index,kind,onClick,point){
     const b=el('button',undefined,'cell-preview');b.type='button';b.disabled=disabled;b.onclick=onClick;
     b.append(el('span',`${kind} index ${index}`,'cell-number'),el('span',description,'cell-identity'));
+    if(description.startsWith('Local placeholder outpoint '))b.append(el('span','Local snapshot only · chain status not checked','placeholder-note'));
     if(description.startsWith('Draft output '))b.querySelector('.cell-identity').title='Local label for this editing session; this output does not yet have an outpoint.';else if(point&&typeof point.tx_hash==='string'&&typeof point.index==='string')b.querySelector('.cell-identity').title=`${point.tx_hash}:${point.index}`;
     let capacity='Invalid capacity';try{capacity=`${ckb(cell.output.capacity)} CKB`;}catch{}
     b.append(el('strong',capacity,capacity.length>17?'capacity-long':undefined));const meta=el('span',undefined,'cell-meta');
     for(const kind of ['lock','type']){
       const value=cell?.output?.[kind], marker=scriptMarker(value), name=kind==='lock'?'Lock':'Type', absent=kind==='type'&&value===null;
-      const chip=el('span',marker?`${name} ${scriptName(value)} · ${marker.id}`:absent?'Type · none':`${name} ?`,absent?'script-chip no-type':'script-chip');
+      const chip=el('span',marker?`${name} ${scriptName(value)} · ${marker.id}`:absent?'Type · no script':`${name} ?`,absent?'script-chip no-type':'script-chip');
       if(marker){chip.style.setProperty('--script',marker.color);if(kind==='lock')b.style.setProperty('--script',marker.color);}
       meta.append(chip);
     }
@@ -115,7 +117,12 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     write(next);
     if(kind==='inputs'){
       if(action==='add'||action==='duplicate')placeholderPoints.add(identityKey(next.transaction.inputs.at(-1).previous_output));
-      witnessNotice=Array.isArray(next.transaction.witnesses)&&next.transaction.witnesses.length?'Input list changed. Witnesses stayed in their original positions and were not edited; check their intended association.':'';
+      if(Array.isArray(next.transaction.witnesses)&&next.transaction.witnesses.length){
+        const witnesses=next.transaction.witnesses;const moved=action==='up'||action==='down';const to=index+(action==='up'?-1:1);
+        const positions=moved?[Math.min(index,to),Math.max(index,to)]:[];
+        const detail=positions.map(i=>{const point=next.transaction.inputs[i]?.previous_output;const witness=witnesses[i];const value=typeof witness==='string'?(witness.length>18?`${witness.slice(0,18)}…`:witness):'invalid value';return `Input index ${i}: ${outpointName(point,next)}; witness index ${i}: ${i<witnesses.length?value:'not supplied'}.`;}).join(' ');
+        witnessNotice=`${moved?`Input moved from index ${index} to ${to}. `:'Input list changed. '}Witnesses stayed in their original positions and were not edited. ${detail}Same-position entries are not guaranteed pairs; script-group relationships may differ.`;
+      } else witnessNotice='';
     }
     if(action==='up')selection=selection?`${kind}:${index-1}`:null;
     else if(action==='down')selection=selection?`${kind}:${index+1}`:null;
@@ -128,7 +135,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     ref.append(el('p','Changing the reference does not fetch or authenticate the cell or its origin. Review the supplied cell data.','hint'));
     if(cell?.transaction_info===null)ref.append(el('p','The supplied origin remains unconfirmed (null).','hint'));
     if(point && typeof point==='object' && !Array.isArray(point)) {
-      const refField=(name,value)=>{const wrap=el('label',name,'wb-field');const input=el('input');input.value=typeof value==='string'?value:'';input.setAttribute('aria-label',name);input.spellcheck=false;wrap.append(input);ref.append(wrap);return input;};
+      const refField=(name,value)=>{const wrap=el('label',name.replace(/^(?:Input|Output|Cell dep) index \d+ /,''),'wb-field');const input=el('input');input.value=typeof value==='string'?value:'';input.setAttribute('aria-label',name);input.spellcheck=false;wrap.append(input);ref.append(wrap);return input;};
       const hash=refField(`${label} transaction hash`,point.tx_hash);const outputIndex=refField(`${label} output index (RPC hex)`,point.index);
       const initialHash=hash.value, initialIndex=outputIndex.value;const pending=()=>{const message=hash.value!==initialHash||outputIndex.value!==initialIndex?'Apply the reference or cancel changes before saving.':'';hash.setCustomValidity(message);outputIndex.setCustomValidity(message);};hash.oninput=pending;outputIndex.oninput=pending;
       const apply=el('button','Apply reference','secondary');apply.type='button';apply.onclick=()=>{const bad=[...root.querySelectorAll('input,textarea,select')].find(n=>n!==hash&&n!==outputIndex&&!n.checkValidity());if(bad){bad.reportValidity();return;}try{const nextPoint={tx_hash:hash.value,index:outputIndex.value};const identity=cell?resolvedIdentity(point):null;const oldKey=identityKey(point),newKey=identityKey(nextPoint);write((kind==='input'?changeInputReference:changeDependencyReference)(read(),index,nextPoint));if(identity){resolvedIds.delete(oldKey);resolvedIds.set(newKey,identity);}if(oldKey!==newKey)placeholderPoints.delete(oldKey);refresh();}catch(e){error.textContent=e.message;}};ref.append(apply);
@@ -244,6 +251,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     heading.append(total, el('span',r.script_group ? 'Selected group' : 'Full transaction','scope-badge'));
     snapshot.append(heading);
     if(delta) snapshot.append(delta);
+    snapshot.append(el('p','Script numbers identify matching scripts; colors help distinguish them and may repeat. Neither indicates verification or chain validity.','hint script-legend'));
     const columns = el('div',undefined,'cell-columns'); snapshot.append(columns);
     const choices = scriptChoices(r);
     const scriptId = value => { const index=choices.findIndex(s=>String(s.code_hash).toLowerCase()===String(value?.code_hash).toLowerCase()&&s.hash_type===value?.hash_type&&String(s.args).toLowerCase()===String(value?.args).toLowerCase()); return index<0?'?':String(index+1); };
@@ -283,9 +291,9 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     const depCards=[...deps.querySelectorAll(':scope > .wb-card')];
     depCards.forEach((editor,i)=>{
       const point=r.transaction.cell_deps[i]?.out_point;const description=outpointName(point,r);const key=`dep:${i}`;editors.set(key,[`Cell dep index ${i}`,editor,description]);
-      const kind=r.transaction.cell_deps[i]?.dep_type;const kindLabel=kind==='code'?'Cell':kind==='dep_group'?'Group':'Invalid';const b=el('button',`#${i} · ${kindLabel} · ${description}`,'dep-dot dep-kind');b.type='button';b.disabled=disabled;
+      const kind=r.transaction.cell_deps[i]?.dep_type;const kindLabel=kind==='code'?'Code':kind==='dep_group'?'Dep group':'Invalid type';const b=el('button',`#${i} · ${kindLabel} · ${description}${description.startsWith('Local placeholder')?' · local snapshot only; chain status not checked':''}`,'dep-dot dep-kind');b.type='button';b.disabled=disabled;
       if(kind==='dep_group')b.classList.add('dep-group');
-      b.setAttribute('aria-label',`Cell dep index ${i} · ${kind??'invalid'} · ${description} · open details`);
+      b.setAttribute('aria-label',`Cell dep index ${i} · ${kind??'invalid'} · ${description}${description.startsWith('Local placeholder')?' · local snapshot only; chain status not checked':''} · open details`);
       b.title=`${b.getAttribute('aria-label')} · ${point?.tx_hash??''}:${point?.index??''}`;b.onclick=()=>open(key,b);depRail.append(b);
     });
     if(!depCards.length)depRail.append(el('span','None','hint'));
@@ -302,14 +310,14 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       const form=el('section',undefined,'header-draft');parent.append(form);
       form.append(el('h3',replaceIndex===null?'Create a header':'Edit a copy of this header'),el('p',replaceIndex===null?'Start from the tip header fields and change them. The computed hash will be added as a dependency.':'Changing fields creates a separate supplied header and updates only this dependency; the original header and other references stay unchanged.','hint'));
       const names=[['version','Version'],['compact_target','Compact target'],['timestamp','Timestamp'],['number','Block number'],['epoch','Packed epoch'],['parent_hash','Parent hash'],['transactions_root','Transactions root'],['proposals_hash','Proposals hash'],['extra_hash','Extra hash'],['dao','DAO'],['nonce','Nonce']];
-      const controls=new Map();for(const [key,label] of names){const wrap=el('label',`Header ${label} (RPC hex)`,'wb-field');const input=el('input');input.value=typeof template?.[key]==='string'?template[key]:'';input.setAttribute('aria-label',`Header ${label} (RPC hex)`);input.spellcheck=false;wrap.append(input);form.append(wrap);controls.set(key,input);}
-      const extensionLabel=el('label','Extension for this header','wb-field');const extension=el('select');extension.setAttribute('aria-label','Extension for this header');for(const [value,title] of [['unspecified','Unspecified — verification may require it'],['none','No extension (explicit null)'],['bytes','Supply extension bytes']]){const option=el('option',title);option.value=value;extension.append(option);}extensionLabel.append(extension);form.append(extensionLabel);
+      const controls=new Map();for(const [key,label] of names){const wrap=el('label',`${label} (RPC hex)`,'wb-field');const input=el('input');input.value=typeof template?.[key]==='string'?template[key]:'';input.setAttribute('aria-label',`Header ${label} (RPC hex)`);input.spellcheck=false;wrap.append(input);form.append(wrap);controls.set(key,input);}
+      const extensionLabel=el('label','Extension for this header','wb-field');const extension=el('select');extension.setAttribute('aria-label','Extension for this header');for(const [value,title] of [['unspecified','Unspecified — verification may require it'],['none','No extension (explicit null)'],['bytes','Supply extension bytes']]){const option=el('option',title);option.value=value;extension.append(option);}extensionLabel.append(extension);form.append(extensionLabel);const extensionHelp=el('p','Extension is extra block data. Verification requires either the actual bytes or an explicit assertion that none exists (null). Unspecified leaves it missing; the snapshot will not verify until supplied.','wb-error');form.append(extensionHelp);
       const extensionWrap=el('label','Extension data (hex)','wb-field');const extensionData=el('input');extensionData.value='0x';extensionData.setAttribute('aria-label','Extension data (hex)');extensionWrap.append(extensionData);extensionWrap.hidden=true;form.append(extensionWrap);
       const preview=el('p','','hint');const problem=el('p','','wb-error');problem.setAttribute('role','alert');form.append(preview,problem);
       const first=controls.values().next().value;let pending=replaceIndex===null;
       function draftValues(base){const header=structuredClone(base&&typeof base==='object'&&!Array.isArray(base)?base:{});for(const [key,input] of controls)header[key]=input.value;return header;}
       function updatePreview(){try{preview.textContent=`Computed locally: ${headerHash(draftValues(template))}. This does not authenticate the header or check its epoch.`;}catch(e){preview.textContent=`Cannot calculate hash: ${e.message}`;}form.dataset.pending=String(pending);}
-      for(const input of controls.values())input.oninput=()=>{pending=true;updatePreview();};extension.onchange=()=>{pending=true;extensionWrap.hidden=extension.value!=='bytes';updatePreview();};extensionData.oninput=()=>{pending=true;updatePreview();};updatePreview();
+      for(const input of controls.values())input.oninput=()=>{pending=true;updatePreview();};extension.onchange=()=>{pending=true;extensionWrap.hidden=extension.value!=='bytes';extensionHelp.className=extension.value==='unspecified'?'wb-error':'hint';updatePreview();};extensionData.oninput=()=>{pending=true;updatePreview();};updatePreview();
       form.append(el('p',Object.hasOwn(template??{},'hash')?'The supplied hash field is retained unchanged; this dependency uses the newly computed hash. The verifier may reject extra fields.':'Other fields are retained. The verifier may reject unknown fields. Extension data is never assumed; choose an option only if you know it.','hint'));
       const actions=el('div',undefined,'header-draft-actions');form.append(actions);const apply=el('button','Apply header','secondary');apply.type='button';actions.append(apply);
       apply.onclick=()=>{const ignored=new Set([...controls.values(),extension,extensionData]);const bad=[...root.querySelectorAll('input,textarea,select')].find(n=>!ignored.has(n)&&!n.checkValidity());if(bad){bad.reportValidity();return;}try{const current=read();let base=current;for(const part of path)base=base?.[part];const header=draftValues(base);const next=addHeaderFromFields(current,header,{replaceIndex,extension:extension.value,extensionData:extensionData.value});write(next);selection=replaceIndex===null?'headers':`headers:${replaceIndex}`;refresh();}catch(e){problem.textContent=e.message;}};
@@ -323,6 +331,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
         else row.append(el('p',matching.length?'Multiple supplied headers share this hash; resolve the ambiguity before editing.':'No uniquely matching supplied header. Choose an existing header or edit the hash below.','wb-error'));
         if(matching.length===1){
           const ext=el('details');ext.append(el('summary','Extension information'));row.append(ext);const records=Array.isArray(r.context.extensions)?r.context.extensions.filter(x=>typeof x?.block_hash==='string'&&x.block_hash.toLowerCase()===hash.toLowerCase()):[];
+          if(Array.isArray(r.context.extensions)&&records.length===0)row.insertBefore(el('p','Extension information is missing. Verification requires actual bytes or an explicit assertion of no extension (null). Open Extension information to supply it.','wb-error'),ext);
           if(!Array.isArray(r.context.extensions)||records.length>1)ext.append(el('p','Extensions are missing or ambiguous; existing data was not changed.','wb-error'));
           else {const current=records[0];ext.append(el('p',current?'Existing extension information is shown below.':'No extension information supplied; verification may require it.','hint'));const label=el('label','Extension status','wb-field');const choice=el('select');choice.setAttribute('aria-label','Extension status');for(const [value,title] of [['','Choose an option'],['none','No extension (explicit null)'],['bytes','Supply extension bytes']]){const option=el('option',title);option.value=value;choice.append(option);}choice.value=current?.data===null?'none':typeof current?.data==='string'?'bytes':'';label.append(choice);ext.append(label);const dataWrap=el('label','Extension bytes (hex)','wb-field');const data=el('input');data.setAttribute('aria-label','Extension bytes (hex)');data.value=typeof current?.data==='string'?current.data:'0x';dataWrap.hidden=choice.value!=='bytes';dataWrap.append(data);ext.append(dataWrap);const originalChoice=choice.value,originalData=data.value;const changed=()=>{dataWrap.hidden=choice.value!=='bytes';choice.setCustomValidity(choice.value!==originalChoice||data.value!==originalData?'Apply extension information or cancel changes before saving.':'');};choice.onchange=changed;data.oninput=changed;const apply=el('button','Apply extension information','secondary');apply.type='button';apply.onclick=()=>{const bad=[...root.querySelectorAll('input,textarea,select')].find(n=>n!==choice&&n!==data&&!n.checkValidity());if(bad){bad.reportValidity();return;}try{write(setHeaderExtension(read(),hash,choice.value,data.value));selection=`headers:${i}`;refresh();}catch(e){error.textContent=e.message;}};ext.append(apply);}
         }
@@ -338,7 +347,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       headerManager.append(el('p','Hashes are computed locally from header fields. This does not authenticate the chain. A header dependency also requires explicit extension information; no extension is assumed.','hint'));
     }else headerManager.append(el('p','header_deps must be an array. Correct it in JSON.','wb-error'));
     objectDots('Header dependencies','headers',r.transaction.header_deps,headerManager,headerEditors,'Header dep');
-    const terms=el('details',undefined,'rail-help');terms.append(el('summary','About dependencies and witnesses'),el('p','Cell dependencies supply cells used by scripts. A dependency refers to one cell or a group of cell references.','hint'),el('p','Header dependencies identify block headers that scripts may use; supplied headers are not fetched or authenticated here.','hint'),el('p','Witnesses contain extra script data, often signatures. #0, #1 and so on are positions in the witness list; they do not necessarily map one-to-one to inputs.','hint'),el('p','On cell cards, the left border follows the Lock script; matching script-label colors indicate the same script. Dependency and witness controls use neutral colors.','hint'));rail.append(terms);
+    const terms=el('details',undefined,'rail-help');terms.append(el('summary','About dependencies and witnesses'),el('p','Cell dependencies supply cells used by scripts. A dependency refers to one cell or a group of cell references.','hint'),el('p','Header dependencies identify block headers that scripts may use; supplied headers are not fetched or authenticated here.','hint'),el('p','Witnesses contain extra script data, often signatures. #0, #1 and so on are positions in the witness list; they do not necessarily map one-to-one to inputs.','hint'),el('p','On cell cards, the left border follows the Lock script. Script numbers identify matching scripts; colors can repeat and do not indicate verification or chain validity. Dependency and witness controls use neutral colors.','hint'));rail.append(terms);
     const settings=el('section'); settings.append(cycles,scope);
     editors.set('settings',['Verification settings',settings]);
     const context=el('section');context.append(el('p','Explicit supplied context, not authenticated chain data. Numeric quantities are decimal; hashes, bytes and packed epochs remain hex. Unknown fields are retained.','hint'));
@@ -373,7 +382,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       headerEditors.forEach(([,card])=>headerManager.insertBefore(card,headerManager.querySelector(':scope > button')));
       dialog.replaceChildren();
       const top=el('div',undefined,'inspector-heading');const title=el('h2',entry[0]);title.id='inspector-title';top.append(title);
-      const close=el('button','Save','secondary');close.type='button';close.onclick=()=>finish();top.append(close);const discard=el('button','Cancel changes','secondary discard-draft');discard.type='button';discard.onclick=()=>finish(true);top.append(discard);dialog.append(top);if(entry[2]){const identity=el('p',entry[2],'inspector-identity');identity.id='inspector-identity';dialog.append(identity);dialog.setAttribute('aria-describedby',identity.id);}else dialog.removeAttribute('aria-describedby');dialog.append(el('p','Save keeps changes. Cancel restores the request from when this editor was opened.','hint'),error,entry[1]);
+      const close=el('button','Save','secondary');close.type='button';close.onclick=()=>finish();top.append(close);const discard=el('button','Cancel changes','secondary discard-draft');discard.type='button';discard.onclick=()=>finish(true);top.append(discard);dialog.append(top);if(entry[2]){const identity=el('p',entry[2],'inspector-identity');identity.id='inspector-identity';dialog.append(identity);if(entry[2].startsWith('Local placeholder outpoint'))dialog.append(el('p','Local snapshot only; chain status has not been checked.','hint'));dialog.setAttribute('aria-describedby',identity.id);}else dialog.removeAttribute('aria-describedby');dialog.append(el('p','Save keeps changes. Cancel restores the request from when this editor was opened.','hint'),error,entry[1]);
       dialog.querySelectorAll('[data-default-open]').forEach(d=>{d.open=true;});
       dialog.querySelectorAll('input,select,textarea,button').forEach(n=>{n.disabled=disabled||n.dataset.boundary==='true';});
       if(!dialog.open)dialog.showModal();

@@ -120,7 +120,7 @@ $('run').addEventListener('click', async () => {
     $('result').textContent = JSON.stringify(result, null, 2);
     $('scope').textContent = (result.scope ?? (request.script_group ? 'script_group' : 'transaction')) === 'script_group' ? 'Selected script group' : 'Transaction';
     $('cycles').textContent = result.cycles === undefined ? '—' : BigInt(result.cycles).toLocaleString('en-US');
-    $('explanation').textContent = explain(result); $('explanation').dataset.kind = result.ok ? '' : 'error';
+    $('explanation').textContent = explain(result, request); $('explanation').dataset.kind = result.ok ? '' : 'error';
     status(result.ok ? 'Passed snapshot' : 'Rejected', result.ok ? '' : 'error');
     $('summary').textContent = result.ok
       ? (result.scope === 'script_group' ? 'Selected script group passed. Other groups and full transaction validity are not asserted.' : 'Transaction passed against the supplied snapshot and consensus. Chain state remains unverified.')
