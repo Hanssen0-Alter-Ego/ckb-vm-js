@@ -93,3 +93,6 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 .context-entry-summary{display:block;margin-top:6px;color:var(--muted);font:11px/1.5 ui-monospace,monospace;overflow-wrap:anywhere}
 .context-list-entry>button{min-width:68px;max-width:none;white-space:nowrap}
 @media(max-width:420px){.context-list-entry{flex-wrap:nowrap}}
+
+/* Inspector edits reveal and focus fields synchronously, including restored disclosures. */
+.inspector details::details-content{transition:none}

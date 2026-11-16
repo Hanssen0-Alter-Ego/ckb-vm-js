@@ -288,6 +288,9 @@ export function createWorkbench(root, { read, write, edited, capture, restore, b
     else if(typeof value==='number')input=field(parent,label,String(value),set,{parse:v=>{const n=Number(v);if(v.trim()===''||!Number.isFinite(n)||!Number.isSafeInteger(n))throw new Error('Use a safe whole JSON number; large quantities must be RPC hex strings.');return n;}});
     else input=field(parent,label,value,set,{area:typeof value==='string'&&value.length>130});
     input.dataset.contextPath=path.join('.');
+    if(path[0]==='context'&&path[1]==='headers'&&path.length===4){
+      const update=input.oninput;input.oninput=()=>{update();const summary=input.closest('.context-list-entry')?.querySelector('.context-entry-summary');if(!summary)return;try{const header=read().context.headers[Number(path[2])];summary.textContent=`Block ${rpcToDecimal(header.number)} · ${headerHash(header).slice(0,14)}…`;}catch{summary.textContent='Invalid header · inspect fields';}};
+    }
     if(path[1]==='extensions'&&key==='data')button('Set no extension (null)',()=>{commit(q=>set(q,null));focusContextPath(path);},parent);
   }
   function overview(r, report) {
