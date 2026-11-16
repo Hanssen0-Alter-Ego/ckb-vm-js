@@ -42,7 +42,7 @@ npm stage publish ./ckb-vm-js-0.2.0.tgz --access public
 
 live 检查同时拒绝 notices 中仍标记的未解决缺口，发布前再检查 tarball 内的 notices。该检查不是法律审查。
 
-发布前仍应审阅实验性验证范围及 [第三方许可证 notice 缺口](../THIRD_PARTY_NOTICES.md)。自动化和 provenance 不会代替代码或许可证审查。
+发布前仍应审阅实验性验证范围及 [第三方许可证声明与来源](../THIRD_PARTY_NOTICES.md)。自动化和 provenance 不会代替代码或许可证审查。
 
 ## 2. GitHub 配置（仓库管理员完成）
 

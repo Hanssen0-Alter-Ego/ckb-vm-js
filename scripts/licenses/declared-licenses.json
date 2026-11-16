@@ -1,0 +1,22 @@
+[
+  {
+    "name": "blake2b-ref",
+    "version": "0.3.1",
+    "license": "MIT",
+    "manifest_sha256": "1c2b756c446bbae9affa92ec49d2bcb361a3a5248fd568c6533ea2c73469217a",
+    "declaration_source": "https://github.com/jjyr/blake2b-ref.rs/blob/f1efc4872d67a8d4c4a57d2d0e16f8b5e53724b9/Cargo.toml",
+    "text_source": "https://raw.githubusercontent.com/spdx/license-list-data/31846481de7ea17d92f2f46fad76abe58b2e9bb0/json/details/MIT.json",
+    "text_file": "MIT-spdx.txt",
+    "text_sha256": "b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5"
+  },
+  {
+    "name": "ckb-system-scripts",
+    "version": "0.5.4",
+    "license": "MIT",
+    "manifest_sha256": "820eed2f88d5fdeaadd98a2c6ff8c16e04215926d25471f5226f3b92511b91f5",
+    "declaration_source": "https://github.com/nervosnetwork/ckb-system-scripts/blob/e08e6016f16072fc2f44cf889ae063fa5b7e10c7/Cargo.toml",
+    "text_source": "https://raw.githubusercontent.com/spdx/license-list-data/31846481de7ea17d92f2f46fad76abe58b2e9bb0/json/details/MIT.json",
+    "text_file": "MIT-spdx.txt",
+    "text_sha256": "b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5"
+  }
+]

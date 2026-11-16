@@ -24,22 +24,10 @@
     "bitcoin_hashes-0.14.101.txt"
   ],
   [
-    "blake2b-ref",
-    "0.3.1",
-    "MISSING",
-    ""
-  ],
-  [
     "ckb-merkle-mountain-range",
     "0.5.2",
     "https://raw.githubusercontent.com/nervosnetwork/merkle-mountain-range/master/LICENSE",
     "ckb-merkle-mountain-range-0.5.2.txt"
-  ],
-  [
-    "ckb-system-scripts",
-    "0.5.4",
-    "MISSING",
-    ""
   ],
   [
     "convert_case",
