@@ -147,3 +147,23 @@ test('dependency reference changes update shared references without losing unkno
  assert.throws(()=>changeDependencyReference(r,0,{tx_hash:'0x12',index:'0x0'}),/32-byte/);assert.throws(()=>changeDependencyReference(r,0,{tx_hash:point.tx_hash,index:'0x100000000'}),/32-bit/);assert.throws(()=>changeDependencyReference(r,0,r.context.cells[1].out_point),/already uses/);
  const broken=request();broken.transaction.cell_deps[0].out_point={tx_hash:'intentionally bad',index:'0x0',extra:'keep'};const rebound=changeDependencyReference(broken,0,broken.context.cells[0].out_point);assert.equal(rebound.transaction.cell_deps[0].out_point.extra,'keep');assert.equal(broken.transaction.cell_deps[0].out_point.tx_hash,'intentionally bad');
 });
+
+test('header hash matches CKB-generated fixture and rejects malformed fields',async()=>{
+ const {headerHash}=await import('../../web/header-hash.js');const r=request();assert.equal(headerHash(r.context.tip_header),r.context.cells[0].transaction_info.block_hash);assert.throws(()=>headerHash({...r.context.tip_header,nonce:'0x100000000000000000000000000000000'}),/128 bits/);assert.throws(()=>headerHash({...r.context.tip_header,parent_hash:'0x00'}),/32-byte/);assert.throws(()=>headerHash({...r.context.tip_header,version:'0x00'}),/canonical/);
+ const published={compact_target:'0x1e083126',dao:'0xb5a3e047474401001bc476b9ee573000c0c387962a38000000febffacf030000',epoch:'0x7080018000001',nonce:'0x0',number:'0x400',parent_hash:'0xae003585fa15309b30b31aed3dcf385e9472c3c3e93746a6c4540629a6a1ed2d',proposals_hash:`0x${'00'.repeat(32)}`,timestamp:'0x5cd2b117',transactions_root:'0xc47d5b78b3c4c4c853e2a32810818940d0ee403423bea9ec7b8e566d9595206c',extra_hash:`0x${'00'.repeat(32)}`,version:'0x0'};
+ assert.equal(headerHash(published),'0xa5f5c85987a15de25661e5a214f2c1449cd803f071acc7999820f25246471f40');
+});
+
+test('header creation and linking calculate hashes without rewriting supplied context',async()=>{
+ const {headerHash}=await import('../../web/header-hash.js');const {headerCandidates,linkExistingHeader,addHeaderFromFields}=await import('../../web/header-model.js');const r=request();r.custom={large:'keep'};const tipHash=headerHash(r.context.tip_header);const linked=linkExistingHeader(r,r.context.tip_header);assert.deepEqual(linked.transaction.header_deps,[tipHash]);assert.deepEqual(linked.context.headers,[]);assert.deepEqual(r.transaction.header_deps,[]);
+ const draft=structuredClone(r.context.tip_header);draft.number='0x65';draft.future={keep:'unknown'};const hash=headerHash(draft);const created=addHeaderFromFields(r,draft,{extension:'none'});assert.deepEqual(created.transaction.header_deps,[hash]);assert.deepEqual(created.context.headers,[draft]);assert.equal(created.context.extensions.at(-1).block_hash,hash);assert.equal(created.context.extensions.at(-1).data,null);assert.deepEqual(created.custom,r.custom);assert.equal(headerCandidates(created).find(x=>x.source==='Supplied header 1').hash,hash);
+ const edited=structuredClone(draft);edited.number='0x66';const second=addHeaderFromFields(created,edited,{replaceIndex:0});assert.equal(second.transaction.header_deps[0],headerHash(edited));assert.deepEqual(second.context.headers,[draft,edited]);assert.equal(second.context.extensions.at(-1).block_hash,hash);assert.deepEqual(created.context.headers,[draft]);assert.throws(()=>addHeaderFromFields(r,r.context.tip_header),/already supplied/);assert.throws(()=>addHeaderFromFields(r,{...draft,nonce:'invalid'}),/canonical/);assert.throws(()=>addHeaderFromFields(r,draft,{extension:'bytes',extensionData:'0xf'}),/even-length/);assert.deepEqual(r.context.headers,[]);
+});
+
+test('explicit header extension edits preserve unknown fields and reject ambiguity',async()=>{
+ const {setHeaderExtension}=await import('../../web/header-model.js');const r=request();const hash=r.context.extensions[0].block_hash;r.context.extensions[0].extra={keep:1};const changed=setHeaderExtension(r,hash,'bytes','0xabcd');assert.equal(changed.context.extensions[0].data,'0xabcd');assert.deepEqual(changed.context.extensions[0].extra,{keep:1});assert.equal(r.context.extensions[0].data,null);assert.throws(()=>setHeaderExtension(r,hash,'bytes','0xa'),/even-length/);r.context.extensions.push(structuredClone(r.context.extensions[0]));assert.throws(()=>setHeaderExtension(r,hash,'none'),/Multiple extension/);
+});
+
+test('linking an existing header rejects duplicate computed hashes',async()=>{
+ const {linkExistingHeader}=await import('../../web/header-model.js');const r=request();r.context.headers.push(structuredClone(r.context.tip_header));assert.throws(()=>linkExistingHeader(r,r.context.tip_header),/ambiguous/);assert.deepEqual(r.transaction.header_deps,[]);
+});
