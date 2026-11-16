@@ -155,24 +155,26 @@ export function mutateCellList(request, kind, action, index = 0) {
   return result;
 }
 
-/** Explicitly relabel a resolved dependency cell and its references. Unknown fields survive. */
-export function changeDependencyReference(request, index, point) {
+/** Explicitly relabel a resolved cell and its references. Unknown fields survive. */
+function changeReference(request, kind, index, point) {
   const next = structuredClone(request);
-  const dep = next.transaction?.cell_deps?.[index];
-  if (!object(dep?.out_point) || !object(point) || typeof point.tx_hash !== 'string' || typeof point.index !== 'string') throw new Error('A dependency reference requires an object with hash and index fields.');
+  const target = kind === 'input' ? next.transaction?.inputs?.[index]?.previous_output : next.transaction?.cell_deps?.[index]?.out_point;
+  if (!object(target) || !object(point) || typeof point.tx_hash !== 'string' || typeof point.index !== 'string') throw new Error('A cell reference requires an object with hash and index fields.');
   const newKey = key(point);
   if (newKey === null || BigInt(point.index) > 0xffffffffn) throw new Error('Enter a 32-byte transaction hash and an unsigned 32-bit RPC hex index.');
-  const oldKey = key(dep.out_point);
-  const cell = resolveCell(next, dep.out_point);
+  const oldKey = key(target);
+  const cell = resolveCell(next, target);
   if (cell && next.context.cells.some(other => other !== cell && key(other?.out_point) === newKey)) throw new Error('Another resolved cell already uses this reference. Choose a unique reference.');
   const update = target => { target.tx_hash = point.tx_hash; target.index = point.index; };
   if (cell && oldKey !== null) {
     for (const input of Array.isArray(next.transaction.inputs) ? next.transaction.inputs : []) if (key(input?.previous_output) === oldKey) update(input.previous_output);
     for (const item of Array.isArray(next.transaction.cell_deps) ? next.transaction.cell_deps : []) if (key(item?.out_point) === oldKey) update(item.out_point);
     update(cell.out_point);
-  } else update(dep.out_point);
+  } else update(target);
   return next;
 }
+export function changeDependencyReference(request, index, point) { return changeReference(request, 'dep', index, point); }
+export function changeInputReference(request, index, point) { return changeReference(request, 'input', index, point); }
 
 /** UI-only decimal editing: never round RPC quantities through Number. */
 export function decimalToRpc(value, bits = 64) {

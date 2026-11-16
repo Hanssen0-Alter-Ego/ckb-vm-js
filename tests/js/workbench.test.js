@@ -167,3 +167,8 @@ test('explicit header extension edits preserve unknown fields and reject ambigui
 test('linking an existing header rejects duplicate computed hashes',async()=>{
  const {linkExistingHeader}=await import('../../web/header-model.js');const r=request();r.context.headers.push(structuredClone(r.context.tip_header));assert.throws(()=>linkExistingHeader(r,r.context.tip_header),/ambiguous/);assert.deepEqual(r.transaction.header_deps,[]);
 });
+
+
+test('input reference updates all aliases without losing metadata or fetching origin',async()=>{
+ const {changeInputReference}=await import('../../web/workbench-model.js');const r=request();r.transaction.cell_deps[0].out_point=structuredClone(r.transaction.inputs[0].previous_output);r.transaction.inputs[0].previous_output.extra='input';r.transaction.cell_deps[0].out_point.extra='dep';r.context.cells[0].out_point.extra='cell';const origin=structuredClone(r.context.cells[0].transaction_info);const point={tx_hash:`0x${'ab'.repeat(32)}`,index:'0x2'};const next=changeInputReference(r,0,point);assert.deepEqual(next.transaction.inputs[0].previous_output,{...point,extra:'input'});assert.deepEqual(next.transaction.cell_deps[0].out_point,{...point,extra:'dep'});assert.deepEqual(next.context.cells[0].out_point,{...point,extra:'cell'});assert.deepEqual(next.context.cells[0].transaction_info,origin);assert.notDeepEqual(r.transaction.inputs[0].previous_output,next.transaction.inputs[0].previous_output);assert.throws(()=>changeInputReference(r,0,r.context.cells[1].out_point),/already uses/);assert.throws(()=>changeInputReference(r,0,{tx_hash:'bad',index:'0x0'}),/32-byte/);
+});

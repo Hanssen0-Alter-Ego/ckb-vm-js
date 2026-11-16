@@ -2,7 +2,7 @@ import { rawNumber } from './lossless-json.js';
 import { headerHash } from './header-hash.js';
 import { headerCandidates, linkExistingHeader, addHeaderFromFields, setHeaderExtension } from './header-model.js';
 import { ckb, ckbToHex } from './guided.js';
-import { resolveCell, scriptChoices, inspectRequest, mutateCellList, decimalToRpc, rpcToDecimal, addDependencyCell, changeDependencyReference, scriptName } from './workbench-model.js';
+import { resolveCell, scriptChoices, inspectRequest, mutateCellList, decimalToRpc, rpcToDecimal, addDependencyCell, changeDependencyReference, changeInputReference, scriptName } from './workbench-model.js';
 
 // The JSON request is the source of truth. Each edit changes only its target field.
 export function createWorkbench(root, { read, write, edited, capture, restore }) {
@@ -14,6 +14,8 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
   const identities={inputs:[],outputs:[]};
   let nextIdentity=1;
   const resolvedIds=new Map();
+  const placeholderPoints=new Set();
+  let witnessNotice='';
   const scriptIds=new Map();
   const draftNames=new Map();
   let nextDraft=0;
@@ -88,7 +90,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     let n=6;const signature=(h)=>`${h.slice(0,n+2).toLowerCase()}…${h.slice(-n).toLowerCase()}`;
     while(n<32&&refs.some(x=>typeof x?.tx_hash==='string'&&typeof x?.index==='string'&&x.index.toLowerCase()===index.toLowerCase()&&x.tx_hash.toLowerCase()!==hash.toLowerCase()&&signature(x.tx_hash)===signature(hash)))n+=2;
     const short=n>=32?hash:`${hash.slice(0,n+2)}…${hash.slice(-n)}`;
-    return `Outpoint ${short}:${index}`;
+    return `${placeholderPoints.has(identityKey(point))?'Local placeholder outpoint':'Outpoint'} ${short}:${index}`;
   }
   function cellPreview(cell,description,index,kind,onClick,point){
     const b=el('button',undefined,'cell-preview');b.type='button';b.disabled=disabled;b.onclick=onClick;
@@ -111,13 +113,30 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     else if(action==='remove')ids.splice(index,1);
     else {const to=index+(action==='up'?-1:1);[ids[index],ids[to]]=[ids[to],ids[index]];}
     write(next);
+    if(kind==='inputs'){
+      if(action==='add'||action==='duplicate')placeholderPoints.add(identityKey(next.transaction.inputs.at(-1).previous_output));
+      witnessNotice=Array.isArray(next.transaction.witnesses)&&next.transaction.witnesses.length?'Input list changed. Witnesses stayed in their original positions and were not edited; check their intended association.':'';
+    }
     if(action==='up')selection=selection?`${kind}:${index-1}`:null;
     else if(action==='down')selection=selection?`${kind}:${index+1}`:null;
     else if(action==='remove')selection=null;
     refresh();
   }
+  function referenceFields(parent,label,point,cell,index,kind){
+    const ref=el('details');ref.append(el('summary','Reference & origin'));parent.append(ref);
+    ref.append(el('p',cell?'Changing this reference updates the resolved cell and every input or cell dep that refers to it.':'No unique resolved cell matches. Applying a reference changes only this entry.','hint'));
+    ref.append(el('p','Changing the reference does not fetch or authenticate the cell or its origin. Review the supplied cell data.','hint'));
+    if(cell?.transaction_info===null)ref.append(el('p','The supplied origin remains unconfirmed (null).','hint'));
+    if(point && typeof point==='object' && !Array.isArray(point)) {
+      const refField=(name,value)=>{const wrap=el('label',name,'wb-field');const input=el('input');input.value=typeof value==='string'?value:'';input.setAttribute('aria-label',name);input.spellcheck=false;wrap.append(input);ref.append(wrap);return input;};
+      const hash=refField(`${label} transaction hash`,point.tx_hash);const outputIndex=refField(`${label} output index (RPC hex)`,point.index);
+      const initialHash=hash.value, initialIndex=outputIndex.value;const pending=()=>{const message=hash.value!==initialHash||outputIndex.value!==initialIndex?'Apply the reference or cancel changes before saving.':'';hash.setCustomValidity(message);outputIndex.setCustomValidity(message);};hash.oninput=pending;outputIndex.oninput=pending;
+      const apply=el('button','Apply reference','secondary');apply.type='button';apply.onclick=()=>{const bad=[...root.querySelectorAll('input,textarea,select')].find(n=>n!==hash&&n!==outputIndex&&!n.checkValidity());if(bad){bad.reportValidity();return;}try{const nextPoint={tx_hash:hash.value,index:outputIndex.value};const identity=cell?resolvedIdentity(point):null;const oldKey=identityKey(point),newKey=identityKey(nextPoint);write((kind==='input'?changeInputReference:changeDependencyReference)(read(),index,nextPoint));if(identity){resolvedIds.delete(oldKey);resolvedIds.set(newKey,identity);}if(oldKey!==newKey)placeholderPoints.delete(oldKey);refresh();}catch(e){error.textContent=e.message;}};ref.append(apply);
+    } else ref.append(el('p','Reference is not an object; repair this malformed value in JSON.','wb-error'));
+    return ref;
+  }
   function refresh(resetIdentity=false) {
-    if(resetIdentity){identities.inputs=[];identities.outputs=[];resolvedIds.clear();draftNames.clear();nextDraft=0;selection=null;sessionBaseline=null;}
+    if(resetIdentity){identities.inputs=[];identities.outputs=[];resolvedIds.clear();draftNames.clear();placeholderPoints.clear();witnessNotice='';nextDraft=0;selection=null;sessionBaseline=null;}
     const opened = new Set([...root.querySelectorAll('details[open]')].map(d => d.querySelector('summary')?.textContent));
     const activeLabel = root.querySelector('dialog[open]')?.contains(document.activeElement) ? document.activeElement.closest('label')?.firstChild?.textContent : null;
     root.querySelector('dialog')?.close();
@@ -147,14 +166,14 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
         const getCell=q=>input?resolveCell(q,q.transaction.inputs[i].previous_output):null;
         const getOutput=q=>input?getCell(q).output:q.transaction.outputs[i];
         cellFields(card,`${input?'Input':'Output'} index ${i}`,cell,getOutput,(q,v)=>{if(input)getCell(q).data=v;else q.transaction.outputs_data[i]=v;},r);
-        if(input){const advanced=el('details');advanced.append(el('summary','Advanced · since & reference'));card.append(advanced);field(advanced,`Input index ${i} since (RPC hex)`,item.since,(q,v)=>{q.transaction.inputs[i].since=v;});advanced.append(el('p',`Outpoint: ${item.previous_output?.tx_hash}:${item.previous_output?.index}`,'hint'));}
+        if(input){const advanced=el('details');advanced.append(el('summary','Advanced · since & reference'));card.append(advanced);field(advanced,`Input index ${i} since (RPC hex)`,item.since,(q,v)=>{q.transaction.inputs[i].since=v;});referenceFields(advanced,`Input index ${i}`,item.previous_output,cell,i,'input');}
       });
       button(`Add ${kind==='inputs'?'input':'output'}`,()=>{try{changeCells(kind,'add');}catch(e){error.textContent=e.message;}},section);
       if(kind==='inputs')section.append(el('p','Adding or copying creates a synthetic, unconfirmed cell with a unique outpoint. Existing cells and witness positions are not rewritten.','hint'));
     }
     const witnesses=el('section',undefined,'wb-section');witnesses.append(el('h3','Witnesses'));root.append(witnesses);
     if(Array.isArray(r.transaction.witnesses)) {
-      r.transaction.witnesses.forEach((v,i)=>{const row=el('article',undefined,'witness-editor');witnesses.append(row);field(row,`Witness ${i} (hex)`,v,(q,x)=>{q.transaction.witnesses[i]=x;},{area:true});button(`Remove witness ${i}`,()=>commit(q=>{q.transaction.witnesses.splice(i,1);selection='witnesses';}),row);});
+      r.transaction.witnesses.forEach((v,i)=>{const row=el('article',undefined,'witness-editor');witnesses.append(row);field(row,`Witness index ${i} (hex)`,v,(q,x)=>{q.transaction.witnesses[i]=x;},{area:true});button(`Remove witness index ${i}`,()=>commit(q=>{q.transaction.witnesses.splice(i,1);selection='witnesses';}),row);});
       button('Add witness',()=>commit(q=>{q.transaction.witnesses.push('0x');}),witnesses);
     } else witnesses.append(el('p','witnesses must be an array; edit JSON.','wb-error'));
     const deps=el('section',undefined,'wb-section');deps.append(el('h3','Cell deps'));root.append(deps);
@@ -162,22 +181,15 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       r.transaction.cell_deps.forEach((dep,i)=>{
         const row=el('article',undefined,'wb-card');deps.append(row);
         if(!dep||typeof dep!=='object'||Array.isArray(dep)){row.append(el('p','Invalid cell dep. Correct this entry in JSON.','wb-error'));return;}
-        field(row,`Cell dep ${i+1} kind`,dep.dep_type,(q,v)=>{q.transaction.cell_deps[i].dep_type=v;},{options:[['code','Code'],['dep_group','Dep group']]});
+        field(row,`Cell dep index ${i} kind`,dep.dep_type,(q,v)=>{q.transaction.cell_deps[i].dep_type=v;},{options:[['code','Code'],['dep_group','Dep group']]});
         const cell=resolveCell(r,dep.out_point);const get=q=>resolveCell(q,q.transaction.cell_deps[i].out_point);
-        cellFields(row,`Cell dep ${i+1}`,cell,q=>get(q).output,(q,v)=>{get(q).data=v;},r);
-        const ref=el('details');ref.append(el('summary','Reference & origin'));row.append(ref);
-        ref.append(el('p',cell?'Changing this reference updates the resolved cell and every input or cell dep that refers to it.':'No unique resolved cell matches. Applying a reference changes only this dependency.','hint'));
-        if(dep.out_point && typeof dep.out_point==='object' && !Array.isArray(dep.out_point)) {
-          const refField=(label,value)=>{const wrap=el('label',label,'wb-field');const input=el('input');input.value=typeof value==='string'?value:'';input.setAttribute('aria-label',label);input.spellcheck=false;wrap.append(input);ref.append(wrap);return input;};
-          const hash=refField(`Cell dep ${i+1} transaction hash`,dep.out_point.tx_hash);const index=refField(`Cell dep ${i+1} output index (RPC hex)`,dep.out_point.index);
-          const initialHash=hash.value, initialIndex=index.value;const pending=()=>{const message=hash.value!==initialHash||index.value!==initialIndex?'Apply the reference or cancel changes before saving.':'';hash.setCustomValidity(message);index.setCustomValidity(message);};hash.oninput=pending;index.oninput=pending;
-          const apply=el('button','Apply reference','secondary');apply.type='button';apply.onclick=()=>{const bad=[...root.querySelectorAll('input,textarea,select')].find(n=>n!==hash&&n!==index&&!n.checkValidity());if(bad){bad.reportValidity();return;}try{const point={tx_hash:hash.value,index:index.value};const identity=cell?resolvedIdentity(dep.out_point):null;write(changeDependencyReference(read(),i,point));if(identity){resolvedIds.delete(identityKey(dep.out_point));resolvedIds.set(identityKey(point),identity);}refresh();}catch(e){error.textContent=e.message;}};ref.append(apply);
-        } else ref.append(el('p','Reference is not an object; repair this malformed value in JSON.','wb-error'));
+        cellFields(row,`Cell dep index ${i}`,cell,q=>get(q).output,(q,v)=>{get(q).data=v;},r);
+        const ref=referenceFields(row,`Cell dep index ${i}`,dep.out_point,cell,i,'dep');
         if(cell)structuredFields(ref,cell.transaction_info,['context','cells',String(r.context.cells.indexOf(cell)),'transaction_info'],'Origin');
         row.append(el('p','Edits affect this shared resolved cell wherever referenced. Removing a dep does not delete context. Dep-group membership bytes are never rewritten automatically.','hint'));
-        button(`Remove cell dep ${i+1}`,()=>commit(q=>{q.transaction.cell_deps.splice(i,1);selection='deps';}),row);
+        button(`Remove cell dep index ${i}`,()=>commit(q=>{q.transaction.cell_deps.splice(i,1);selection='deps';}),row);
       });
-      button('New resolved cell',()=>{const next=addDependencyCell(read());write(next);selection=`dep:${next.transaction.cell_deps.length-1}`;refresh();},deps);
+      button('New resolved cell',()=>{const next=addDependencyCell(read());write(next);placeholderPoints.add(identityKey(next.transaction.cell_deps.at(-1).out_point));selection=`dep:${next.transaction.cell_deps.length-1}`;refresh();},deps);
       const select=el('select');select.disabled=disabled;select.setAttribute('aria-label','Resolved cell to add as dependency');r.context.cells.forEach((c,i)=>{const o=el('option',`${i+1} · ${c?.out_point?.tx_hash}:${c?.out_point?.index}`);o.value=String(i);select.append(o);});deps.append(select);
       button('Add selected cell as code dependency',()=>commit(q=>{const c=q.context.cells[Number(select.value)];if(!c?.out_point)throw new Error('Select a resolved cell with an outpoint.');q.transaction.cell_deps.push({out_point:structuredClone(c.out_point),dep_type:'code'});}),deps);
     }
@@ -239,6 +251,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       const column = el('section',undefined,'cell-column'); columns.append(column);
       const list = r.transaction[kind];
       column.append(el('h2',`${kind==='inputs'?'Inputs':'Outputs'} · ${Array.isArray(list)?list.length:'invalid'}`));
+      if(kind==='inputs'&&witnessNotice){const notice=el('p',witnessNotice,'hint witness-notice');notice.setAttribute('role','status');column.append(notice);}
       const cards=[...section.querySelectorAll(':scope > .wb-card')];
       while(identities[kind].length<cards.length){const i=identities[kind].length;let identity=kind==='inputs'?resolvedIdentity(r.transaction.inputs[i]?.previous_output):`C${nextIdentity++}`;if(identities[kind].includes(identity))identity=`C${nextIdentity++}`;identities[kind].push(identity);}
       identities[kind].length=cards.length;
@@ -263,27 +276,26 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       });
       if(items.length>4){const show=el('button',expanded.has(kind)?'Show first 4':`Browse all ${items.length} cells`,'secondary browse-cells');show.type='button';show.onclick=()=>{if(!valid())return;expanded.has(kind)?expanded.delete(kind):expanded.add(kind);refresh();};column.append(show);}
       const add=section.querySelector(':scope > button');if(add)column.append(add);
-      if(kind==='inputs'){const help=el('details',undefined,'input-help');help.append(el('summary','About adding an input'),el('p','Each input points to a cell. Adding one creates a sample cell and placeholder outpoint with unconfirmed origin; it does not fetch a live cell. Existing witnesses are not changed.','hint'));column.append(help);}
+      if(kind==='inputs'){const help=el('details',undefined,'input-help');help.append(el('summary','About adding an input'),el('p','Each input points to a cell. Adding one creates a sample cell and placeholder outpoint with unconfirmed origin; it does not fetch a live cell. Existing witnesses are not changed. Placeholder labels last for this editing session; importing or editing JSON clears them because origin is not known.','hint'));column.append(help);}
     }
     const rail=el('div',undefined,'object-rail'); snapshot.append(rail);
     const depRail=el('div',undefined,'dep-rail'); depRail.append(el('span','Cell dependencies','rail-label'));rail.append(depRail);
     const depCards=[...deps.querySelectorAll(':scope > .wb-card')];
     depCards.forEach((editor,i)=>{
-      const key=`dep:${i}`;editors.set(key,[`Cell dep ${i+1}`,editor,outpointName(r.transaction.cell_deps[i]?.out_point,r)]);
-      const kind=r.transaction.cell_deps[i]?.dep_type;const kindLabel=kind==='code'?'Cell':kind==='dep_group'?'Group':'Invalid';const b=el('button',`${kindLabel} ${i+1}`,'dep-dot dep-kind'); b.type='button';b.disabled=disabled;
-      const identity=JSON.stringify(r.transaction.cell_deps[i]?.out_point??i);const color=[...identity].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0)%6;
-      b.style.setProperty('--dot', ['#a8d98d','#9db7ff','#ffcb86','#dca8eb','#82d5ca','#eea1ad'][color]);if(r.transaction.cell_deps[i]?.dep_type==='dep_group')b.classList.add('dep-group');
-      b.setAttribute('aria-label',`Cell dep ${i+1} · ${r.transaction.cell_deps[i]?.dep_type??'invalid'} · open details`);
-      b.title=b.getAttribute('aria-label');b.onclick=()=>open(key,b);depRail.append(b);
+      const point=r.transaction.cell_deps[i]?.out_point;const description=outpointName(point,r);const key=`dep:${i}`;editors.set(key,[`Cell dep index ${i}`,editor,description]);
+      const kind=r.transaction.cell_deps[i]?.dep_type;const kindLabel=kind==='code'?'Cell':kind==='dep_group'?'Group':'Invalid';const b=el('button',`#${i} · ${kindLabel} · ${description}`,'dep-dot dep-kind');b.type='button';b.disabled=disabled;
+      if(kind==='dep_group')b.classList.add('dep-group');
+      b.setAttribute('aria-label',`Cell dep index ${i} · ${kind??'invalid'} · ${description} · open details`);
+      b.title=`${b.getAttribute('aria-label')} · ${point?.tx_hash??''}:${point?.index??''}`;b.onclick=()=>open(key,b);depRail.append(b);
     });
     if(!depCards.length)depRail.append(el('span','None','hint'));
     const depManager=el('section');
-    depCards.forEach((editor,i)=>{const cell=resolveCell(r,r.transaction.cell_deps[i]?.out_point);const b=cellPreview(cell,outpointName(r.transaction.cell_deps[i]?.out_point,r),i,'Cell dep',()=>open(`dep:${i}`,b),r.transaction.cell_deps[i]?.out_point);b.setAttribute('aria-label',`Edit cell dep ${i+1}`);depManager.append(b);});
+    depCards.forEach((editor,i)=>{const cell=resolveCell(r,r.transaction.cell_deps[i]?.out_point);const b=cellPreview(cell,outpointName(r.transaction.cell_deps[i]?.out_point,r),i,'Cell dep',()=>open(`dep:${i}`,b),r.transaction.cell_deps[i]?.out_point);b.setAttribute('aria-label',`Edit cell dep index ${i} · ${outpointName(r.transaction.cell_deps[i]?.out_point,r)}`);depManager.append(b);});
     [...deps.children].filter(n=>!depCards.includes(n)&&n.tagName!=='H3').forEach(n=>depManager.append(n));
     editors.set('deps',['Manage cell deps',depManager]);
     const manage=button('Manage',()=>open('deps',manage),depRail);manage.setAttribute('aria-label','Manage cell deps');
     const witnessCards=[...witnesses.querySelectorAll(':scope > .witness-editor')];
-    objectDots('Witnesses','witnesses',r.transaction.witnesses,witnesses,witnessCards.map((card,i)=>[`Witness ${i}`,card]),'Witness');
+    objectDots('Witnesses','witnesses',r.transaction.witnesses,witnesses,witnessCards.map((card,i)=>[`Witness index ${i}`,card]),'Witness');
     const headerManager=el('section');const headerEditors=[];const candidates=headerCandidates(r);
     function headerDraft(parent,template,path,replaceIndex=null){
       if(parent.querySelector(':scope > .header-draft'))return;
@@ -306,7 +318,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     if(Array.isArray(r.transaction.header_deps)) {
       r.transaction.header_deps.forEach((hash,i)=>{const row=el('article');headerManager.append(row);
         const matching=typeof hash==='string'?candidates.filter(c=>c.hash&&c.hash.toLowerCase()===hash.toLowerCase()):[];
-        row.append(el('p',`Header dependency ${i+1}`, 'hint'));
+        row.append(el('p',`Header dependency index ${i}`, 'hint'));
         if(matching.length===1){const candidate=matching[0];row.append(el('p',`${candidate.source} · block ${candidate.header.number??'unknown'}`, 'hint'));button('Edit matching header',()=>headerDraft(row,candidate.header,candidate.path,i),row);}
         else row.append(el('p',matching.length?'Multiple supplied headers share this hash; resolve the ambiguity before editing.':'No uniquely matching supplied header. Choose an existing header or edit the hash below.','wb-error'));
         if(matching.length===1){
@@ -314,9 +326,9 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
           if(!Array.isArray(r.context.extensions)||records.length>1)ext.append(el('p','Extensions are missing or ambiguous; existing data was not changed.','wb-error'));
           else {const current=records[0];ext.append(el('p',current?'Existing extension information is shown below.':'No extension information supplied; verification may require it.','hint'));const label=el('label','Extension status','wb-field');const choice=el('select');choice.setAttribute('aria-label','Extension status');for(const [value,title] of [['','Choose an option'],['none','No extension (explicit null)'],['bytes','Supply extension bytes']]){const option=el('option',title);option.value=value;choice.append(option);}choice.value=current?.data===null?'none':typeof current?.data==='string'?'bytes':'';label.append(choice);ext.append(label);const dataWrap=el('label','Extension bytes (hex)','wb-field');const data=el('input');data.setAttribute('aria-label','Extension bytes (hex)');data.value=typeof current?.data==='string'?current.data:'0x';dataWrap.hidden=choice.value!=='bytes';dataWrap.append(data);ext.append(dataWrap);const originalChoice=choice.value,originalData=data.value;const changed=()=>{dataWrap.hidden=choice.value!=='bytes';choice.setCustomValidity(choice.value!==originalChoice||data.value!==originalData?'Apply extension information or cancel changes before saving.':'');};choice.onchange=changed;data.oninput=changed;const apply=el('button','Apply extension information','secondary');apply.type='button';apply.onclick=()=>{const bad=[...root.querySelectorAll('input,textarea,select')].find(n=>n!==choice&&n!==data&&!n.checkValidity());if(bad){bad.reportValidity();return;}try{write(setHeaderExtension(read(),hash,choice.value,data.value));selection=`headers:${i}`;refresh();}catch(e){error.textContent=e.message;}};ext.append(apply);}
         }
-        const raw=el('details');raw.append(el('summary','Advanced · dependency hash'));row.append(raw);field(raw,`Header dep ${i+1} hash`,typeof hash==='string'?hash:'',(q,v)=>{q.transaction.header_deps[i]=v;});raw.append(el('p','The hash must match a supplied header. Editing it here does not change header fields.','hint'));
-        button(`Remove header dep ${i+1}`,()=>commit(q=>{q.transaction.header_deps.splice(i,1);selection='headers';}),row);
-        headerEditors.push([`Header dep ${i+1}`,row]);
+        const raw=el('details');raw.append(el('summary','Advanced · dependency hash'));row.append(raw);field(raw,`Header dep index ${i} hash`,typeof hash==='string'?hash:'',(q,v)=>{q.transaction.header_deps[i]=v;});raw.append(el('p','The hash must match a supplied header. Editing it here does not change header fields.','hint'));
+        button(`Remove header dep index ${i}`,()=>commit(q=>{q.transaction.header_deps.splice(i,1);selection='headers';}),row);
+        headerEditors.push([`Header dep index ${i}`,row]);
       });
       const existing=candidates.filter(c=>c.hash&&candidates.filter(other=>other.hash===c.hash).length===1);const chooseLabel=el('label','Existing header','wb-field');const choose=el('select');choose.setAttribute('aria-label','Existing header');existing.forEach((candidate,i)=>{const option=el('option',`${candidate.source} · block ${candidate.header.number??'?'} · ${candidate.hash.slice(0,12)}…`);option.value=String(i);choose.append(option);});choose.disabled=disabled||!existing.length;chooseLabel.append(choose);headerManager.append(chooseLabel);
       const link=button('Add existing header',()=>{const candidate=existing[Number(choose.value)];if(!candidate)throw new Error('No valid supplied header is available.');write(linkExistingHeader(read(),candidate.header));refresh();},headerManager);if(!existing.length){link.disabled=true;link.dataset.boundary='true';headerManager.append(el('p','No unique supplied header is available.','hint'));}
@@ -326,7 +338,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       headerManager.append(el('p','Hashes are computed locally from header fields. This does not authenticate the chain. A header dependency also requires explicit extension information; no extension is assumed.','hint'));
     }else headerManager.append(el('p','header_deps must be an array. Correct it in JSON.','wb-error'));
     objectDots('Header dependencies','headers',r.transaction.header_deps,headerManager,headerEditors,'Header dep');
-    const terms=el('details',undefined,'rail-help');terms.append(el('summary','About dependencies and witnesses'),el('p','Cell dependencies supply cells used by scripts. A dependency refers to one cell or a group of cell references.','hint'),el('p','Header dependencies identify block headers that scripts may use; supplied headers are not fetched or authenticated here.','hint'),el('p','Witnesses contain extra script data, often signatures. #0, #1 and so on are positions in the witness list; they do not necessarily map one-to-one to inputs.','hint'),el('p','Matching colors indicate matching scripts. Outpoints and draft labels identify cells without relying on color.','hint'));rail.append(terms);
+    const terms=el('details',undefined,'rail-help');terms.append(el('summary','About dependencies and witnesses'),el('p','Cell dependencies supply cells used by scripts. A dependency refers to one cell or a group of cell references.','hint'),el('p','Header dependencies identify block headers that scripts may use; supplied headers are not fetched or authenticated here.','hint'),el('p','Witnesses contain extra script data, often signatures. #0, #1 and so on are positions in the witness list; they do not necessarily map one-to-one to inputs.','hint'),el('p','On cell cards, the left border follows the Lock script; matching script-label colors indicate the same script. Dependency and witness controls use neutral colors.','hint'));rail.append(terms);
     const settings=el('section'); settings.append(cycles,scope);
     editors.set('settings',['Verification settings',settings]);
     const context=el('section');context.append(el('p','Explicit supplied context, not authenticated chain data. Numeric quantities are decimal; hashes, bytes and packed epochs remain hex. Unknown fields are retained.','hint'));
@@ -342,7 +354,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     const settingsButton=button('Settings',()=>open('settings',settingsButton),controls);settingsButton.setAttribute('aria-label','Settings');
     function objectDots(label,key,items,manager,entries,itemLabel){
       const row=el('div',undefined,'dep-rail');row.append(el('span',label,'rail-label'));rail.append(row);
-      entries.forEach(([title,editor],i)=>{const id=`${key}:${i}`;editors.set(id,[title,editor]);const b=el('button',key==='witnesses'?`#${i}`:String(i+1),'dep-dot');b.type='button';b.disabled=disabled;b.style.setProperty('--dot',['#a8d98d','#9db7ff','#ffcb86','#dca8eb','#82d5ca','#eea1ad'][i%6]);b.setAttribute('aria-label',`${itemLabel} ${itemLabel==='Witness'?i:i+1} · open details`);b.title=b.getAttribute('aria-label');b.onclick=()=>open(id,b);row.append(b);});
+      entries.forEach(([title,editor],i)=>{const id=`${key}:${i}`;editors.set(id,[title,editor]);const b=el('button',`#${i}`,'dep-dot reference-dot');b.type='button';b.disabled=disabled;b.setAttribute('aria-label',`${itemLabel} index ${i} · open details`);b.title=b.getAttribute('aria-label');b.onclick=()=>open(id,b);row.append(b);});
       if(!entries.length)row.append(el('span',Array.isArray(items)?'None':'Invalid array','hint'));
       editors.set(key,[label,manager]);const manage=button('Manage',()=>open(key,manage),row);manage.setAttribute('aria-label',`Manage ${key==='headers'?'header deps':label.toLowerCase()}`);
     }
@@ -352,7 +364,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     function open(key,trigger) {
       if(!valid())return;
       if(trigger)restoreFocus=trigger.getAttribute('aria-label');
-      if(sessionBaseline===null)sessionBaseline={request:capture(),inputs:[...identities.inputs],outputs:[...identities.outputs],resolved:new Map(resolvedIds),drafts:new Map(draftNames),nextDraft};
+      if(sessionBaseline===null)sessionBaseline={request:capture(),inputs:[...identities.inputs],outputs:[...identities.outputs],resolved:new Map(resolvedIds),drafts:new Map(draftNames),placeholders:new Set(placeholderPoints),witnessNotice,nextDraft};
       selection=key;
       const entry=editors.get(key);if(!entry){selection=null;return;}
       // Return dependency editors to their management container before switching.
@@ -368,10 +380,10 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     }
     function returnFocus(){
       if(!restoreFocus)return;const nodes=[...root.querySelectorAll('[aria-label]')];let target=nodes.find(n=>n.getAttribute('aria-label')===restoreFocus);
-      const dep=/^Edit cell dep ([0-9]+)$/.exec(restoreFocus);if(!target&&dep)target=nodes.find(n=>n.getAttribute('aria-label').startsWith(`Cell dep ${dep[1]} ·`));
+      const dep=/^Edit cell dep index ([0-9]+) ·/.exec(restoreFocus);if(!target&&dep)target=nodes.find(n=>n.getAttribute('aria-label').startsWith(`Cell dep index ${dep[1]} ·`));
       if(!target)target=nodes.find(n=>n.getAttribute('aria-label')==='Manage cell deps');target?.focus();
     }
-    function finish(discard=false){if(!discard&&!valid())return;selection=null;dialog.close();if(discard&&sessionBaseline!==null){restore(sessionBaseline.request);identities.inputs=sessionBaseline.inputs;identities.outputs=sessionBaseline.outputs;resolvedIds.clear();for(const [key,value] of sessionBaseline.resolved)resolvedIds.set(key,value);draftNames.clear();for(const [key,value] of sessionBaseline.drafts)draftNames.set(key,value);nextDraft=sessionBaseline.nextDraft;}sessionBaseline=null;refresh();returnFocus();}
+    function finish(discard=false){if(!discard&&!valid())return;selection=null;dialog.close();if(discard&&sessionBaseline!==null){restore(sessionBaseline.request);identities.inputs=sessionBaseline.inputs;identities.outputs=sessionBaseline.outputs;resolvedIds.clear();for(const [key,value] of sessionBaseline.resolved)resolvedIds.set(key,value);draftNames.clear();for(const [key,value] of sessionBaseline.drafts)draftNames.set(key,value);placeholderPoints.clear();for(const key of sessionBaseline.placeholders)placeholderPoints.add(key);witnessNotice=sessionBaseline.witnessNotice;nextDraft=sessionBaseline.nextDraft;}sessionBaseline=null;refresh();returnFocus();}
     dialog.addEventListener('cancel',e=>{e.preventDefault();finish(true);});
     if(selection)open(selection);
   }
