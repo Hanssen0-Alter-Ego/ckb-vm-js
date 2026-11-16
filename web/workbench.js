@@ -11,6 +11,8 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
   let sessionBaseline = null;
   let depSubsession = null;
   let removalUndo = null;
+  let duplicateNotice = null;
+  let duplicateFocus = null;
   const expanded = new Set();
   let restoreFocus;
   const identities={inputs:[],outputs:[]};
@@ -42,7 +44,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     };
     wrap.append(input); parent.append(wrap); return input;
   }
-  function valid() { const pending=root.querySelector('.header-draft[data-pending="true"]');if(pending){error.textContent='Apply or cancel the header draft before saving.';pending.querySelector('input')?.focus();return false;}const bad = [...root.querySelectorAll('input,textarea,select')].find(n => !n.checkValidity()); if (bad) { bad.reportValidity(); return false; } return true; }
+  function valid() { const pending=root.querySelector('.header-draft[data-pending="true"]');if(pending){error.textContent='Apply or cancel the header draft before saving.';pending.querySelector('input')?.focus();return false;}const bad = [...root.querySelectorAll('input,textarea,select')].find(n => !n.checkValidity()); if (bad) { bad.reportValidity(); bad.focus(); bad.scrollIntoView({block:'center'}); return false; } return true; }
   function updateDraftControl(){}
   let error;
   function script(parent, title, value, getOutput, key, request) {
@@ -132,7 +134,10 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     if(action==='up')selection=selection?`${kind}:${index-1}`:null;
     else if(action==='down')selection=selection?`${kind}:${index+1}`:null;
     else if(action==='remove')selection=null;
+    else if(action==='duplicate'){const last=next.transaction[kind].length-1;selection=`${kind}:${last}`;duplicateNotice=`Duplicated ${kind==='inputs'?'input':'output'} index ${index}. You are editing the new ${kind==='inputs'?'input':'output'} index ${last}.`;}
+    if((action==='add'||action==='duplicate')&&ids.length>4)expanded.add(kind);
     refresh();
+    if(action==='add'||action==='duplicate'){const preview=root.querySelector(`[data-cell-id="${ids.at(-1)}"] .cell-preview`);if(action==='duplicate'){duplicateFocus=preview?.getAttribute('aria-label')??null;const title=root.querySelector('dialog[open] #inspector-title');if(title){title.tabIndex=-1;title.focus();}}else preview?.focus();}
   }
   function referenceFields(parent,label,point,cell,index,kind){
     const ref=el('details');ref.append(el('summary','Reference & origin'));parent.append(ref);
@@ -148,7 +153,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     return ref;
   }
   function refresh(resetIdentity=false) {
-    if(resetIdentity){identities.inputs=[];identities.outputs=[];resolvedIds.clear();draftNames.clear();placeholderPoints.clear();witnessNotice='';nextDraft=0;selection=null;sessionBaseline=null;depSubsession=null;removalUndo=null;}
+    if(resetIdentity){identities.inputs=[];identities.outputs=[];resolvedIds.clear();draftNames.clear();placeholderPoints.clear();witnessNotice='';nextDraft=0;selection=null;sessionBaseline=null;depSubsession=null;removalUndo=null;duplicateNotice=null;duplicateFocus=null;}
     const opened = new Set([...root.querySelectorAll('details[open]')].map(d => d.querySelector('summary')?.textContent));
     const activeLabel = root.querySelector('dialog[open]')?.contains(document.activeElement) ? document.activeElement.closest('label')?.firstChild?.textContent : null;
     root.querySelector('dialog')?.close();
@@ -171,7 +176,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       r.transaction[kind].forEach((item,i)=>{
         const card=el('article',undefined,'wb-card');card.append(el('h4',`${kind==='inputs'?'Input':'Output'} index ${i}`));section.append(card);
         const tools=el('div',undefined,'wb-tools');card.append(tools);
-        button('Copy',()=>{try{changeCells(kind,'duplicate',i);}catch(e){error.textContent=e.message;}},tools);
+        button(`Duplicate ${kind==='inputs'?'input':'output'}`,()=>{try{changeCells(kind,'duplicate',i);}catch(e){error.textContent=e.message;}},tools);
         if (!item || typeof item !== 'object' || Array.isArray(item)) { card.append(el('p','Invalid cell entry. Correct this entry in JSON.','wb-error')); return; }
         const input=kind==='inputs';
         const cell=input?resolveCell(r,item?.previous_output):{output:item,data:r.transaction.outputs_data?.[i]};
@@ -185,7 +190,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
     }
     const witnesses=el('section',undefined,'wb-section');witnesses.append(el('h3','Witnesses'),el('p','Witnesses hold extra script data, such as signatures. Their positions do not always pair one-to-one with inputs.','hint'));root.append(witnesses);
     if(Array.isArray(r.transaction.witnesses)) {
-      r.transaction.witnesses.forEach((v,i)=>{const row=el('article',undefined,'witness-editor');witnesses.append(row);field(row,`Witness index ${i} (hex)`,v,(q,x)=>{q.transaction.witnesses[i]=x;},{area:true});button(`Remove witness index ${i}`,()=>commit(q=>{q.transaction.witnesses.splice(i,1);selection='witnesses';}),row);});
+      r.transaction.witnesses.forEach((v,i)=>{const row=el('article',undefined,'witness-editor');witnesses.append(row);const bytes=value=>{if(!/^0x(?:[0-9a-f]{2})*$/i.test(value))throw new Error('Enter 0x followed by an even number of hex digits.');return value;};const input=field(row,`Witness index ${i} (hex)`,v,(q,x)=>{q.transaction.witnesses[i]=x;},{area:true,parse:bytes});const note=el('span','','wb-error field-error');note.id=`witness-error-${i}`;note.setAttribute('role','alert');input.setAttribute('aria-describedby',note.id);input.parentElement.append(note);let initialInvalid=typeof v!=='string'||!/^0x(?:[0-9a-f]{2})*$/i.test(v);const show=()=>{const message=input.validationMessage||(initialInvalid?'The stored value is not valid hex. It is retained unchanged; edit JSON to construct invalid bytes.':'');note.textContent=message;if(message)input.setAttribute('aria-invalid','true');else input.removeAttribute('aria-invalid');};show();const priorInput=input.oninput;input.oninput=e=>{initialInvalid=false;priorInput(e);show();};const priorChange=input.onchange;input.onchange=e=>{priorChange(e);show();};button(`Remove witness index ${i}`,()=>commit(q=>{q.transaction.witnesses.splice(i,1);selection='witnesses';}),row);});
       button('Add witness',()=>commit(q=>{q.transaction.witnesses.push('0x');}),witnesses);
     } else witnesses.append(el('p','witnesses must be an array; edit JSON.','wb-error'));
     const deps=el('section',undefined,'wb-section');deps.append(el('h3','Cell deps'));root.append(deps);
@@ -311,6 +316,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       if(items.length>4){const show=el('button',expanded.has(kind)?'Show first 4':`Browse all ${items.length} cells`,'secondary browse-cells');show.type='button';show.onclick=()=>{if(!valid())return;expanded.has(kind)?expanded.delete(kind):expanded.add(kind);refresh();};column.append(show);}
       const add=section.querySelector(':scope > button');if(add)column.append(add);
       if(kind==='inputs'){const help=el('details',undefined,'input-help');help.append(el('summary','About adding an input'),el('p','Each input points to a cell. Adding one creates a sample cell and placeholder outpoint with unconfirmed origin; it does not fetch a live cell. Existing witnesses are not changed. Placeholder labels last for this editing session; importing or editing JSON clears them because origin is not known.','hint'));column.append(help);}
+      else {const help=el('details',undefined,'input-help');help.append(el('summary','About adding an output'),el('p','A new output copies fields from the first output, or from a supplied cell if no output exists. Its data starts empty. Review the new output before running.','hint'));column.append(help);}
     }
     const rail=el('div',undefined,'object-rail'); snapshot.append(rail);
     const depRail=el('div',undefined,'dep-rail'); depRail.append(el('span','Cell dependencies','rail-label'));rail.append(depRail);
@@ -423,6 +429,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       const top=el('div',undefined,'inspector-heading');const title=el('h2',entry[0]);title.id='inspector-title';top.append(title);
       const close=el('button','Save','secondary');close.type='button';close.onclick=()=>finish();top.append(close);const discard=el('button','Cancel changes','secondary discard-draft');discard.type='button';discard.onclick=()=>finish(true);top.append(discard);dialog.append(top);if(entry[2]){const identity=el('p',entry[2],'inspector-identity');identity.id='inspector-identity';dialog.append(identity);if(entry[2].startsWith('Local placeholder'))dialog.append(el('p','Local snapshot only.','hint'));dialog.setAttribute('aria-describedby',identity.id);}else dialog.removeAttribute('aria-describedby');
       const point=entry[3];if(point&&typeof point==='object'&&!Array.isArray(point)&&typeof point.tx_hash==='string'&&typeof point.index==='string'){const full=el('details',undefined,'outpoint-details');full.append(el('summary','Full outpoint · select to copy'),el('p','An outpoint identifies a cell by its creating transaction hash and output index. RPC hex uses a 0x prefix, for example 0x2 means 2.','hint'));const hashLabel=el('label','Transaction hash','wb-field');const hash=el('textarea');hash.readOnly=true;hash.value=point.tx_hash;hash.setAttribute('aria-label','Transaction hash (read only)');hashLabel.append(hash);const indexLabel=el('label','Output index (RPC hex)','wb-field');const index=el('input');index.readOnly=true;index.value=point.index;index.setAttribute('aria-label','Output index (read only)');indexLabel.append(index);full.append(hashLabel,indexLabel);dialog.append(full);}
+      if(duplicateNotice&&/^(inputs|outputs):[0-9]+$/.test(key)){const notice=el('p',duplicateNotice,'hint');notice.setAttribute('role','status');dialog.append(notice);}
       dialog.append(el('p',depSubsession&&/^dep:[0-9]+$/.test(key)?'Save returns to cell dependencies. Cancel restores this cell edit.':'Save keeps changes. Cancel restores the request from when this editor was opened.','hint'),error,entry[1]);
       dialog.querySelectorAll('[data-default-open]').forEach(d=>{d.open=true;});
       dialog.querySelectorAll('input,select,textarea,button').forEach(n=>{n.disabled=disabled||n.dataset.boundary==='true';});
@@ -437,7 +444,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
       const header=/^(?:Open header dep index ([0-9]+)|Header dep index ([0-9]+) · open details)$/.exec(restoreFocus);if(!target&&header){const index=header[1]??header[2];target=nodes.find(n=>n.getAttribute('aria-label')===`Header dep index ${index} · open details`)??nodes.find(n=>n.getAttribute('aria-label')==='Manage header deps');}
       if(!target)target=nodes.find(n=>n.getAttribute('aria-label')==='Manage cell deps');target?.focus();
     }
-    function finish(discard=false){if(!discard&&!valid())return;if(depSubsession&&/^dep:[0-9]+$/.test(selection)){returnToDeps(discard);return;}selection=null;dialog.close();if(discard&&sessionBaseline!==null)restoreState(sessionBaseline);sessionBaseline=null;depSubsession=null;refresh();returnFocus();}
+    function finish(discard=false){if(!discard&&!valid())return;if(depSubsession&&/^dep:[0-9]+$/.test(selection)){returnToDeps(discard);return;}selection=null;if(discard)dialog.querySelectorAll('input,textarea,select').forEach(n=>{n.onchange=null;});dialog.close();if(discard&&sessionBaseline!==null)restoreState(sessionBaseline);if(!discard&&duplicateFocus)restoreFocus=duplicateFocus;sessionBaseline=null;depSubsession=null;duplicateNotice=null;duplicateFocus=null;refresh();returnFocus();}
     dialog.addEventListener('cancel',e=>{e.preventDefault();const draft=dialog.querySelector('.header-draft');if(draft)draft.back();else finish(true);});
     if(selection)open(selection);
   }

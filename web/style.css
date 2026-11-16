@@ -49,4 +49,7 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 .list-tools .remove-cell{font-size:10px;line-height:1.1;padding:4px 2px}.removal-notice{display:flex;align-items:center;gap:8px;color:#d4dfcd;font-size:12px;margin:0 0 10px}.removal-notice button{padding:6px 10px;min-height:44px}.dep-list-row{margin-bottom:9px}.inspector .dep-list-row button{margin-right:0}
 
 /* Allow the full removal label to stay readable beside the 44px controls. */
-.cell-row{grid-template-columns:minmax(0,1fr) 64px}.list-tools{align-items:center}.list-tools .remove-cell{width:56px;min-width:56px;white-space:nowrap}
+.cell-row{grid-template-columns:minmax(0,1fr) 52px}.list-tools{align-items:center;padding:2px}.list-tools .remove-cell{width:48px;min-width:48px;white-space:nowrap}
+
+/* On short or highly zoomed screens, let the heading scroll rather than cover controls. */
+@media(max-height:420px){.inspector-heading{position:static}.inspector input,.inspector textarea{scroll-margin-block:16px}}
