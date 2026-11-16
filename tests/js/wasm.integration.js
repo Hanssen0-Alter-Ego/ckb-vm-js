@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { createVerifier } from '../../js/index.js';
+import { scriptHash, scriptGroupCandidates } from '../../web/workbench-model.js';
 const wasm = await readFile(new URL('../../pkg/ckb_wasm_verifier_bg.wasm', import.meta.url));
 const verifier = await createVerifier({ wasm });
 const normalized = (key, value) => key === 'groups' && Array.isArray(value)
@@ -34,3 +35,11 @@ for (const file of fixtureFiles) {
     for (const [key, value] of Object.entries(expected)) assert.deepEqual(normalized(key, result[key]), normalized(key, value), key);
   });
 }
+
+
+test('frontend group hashes match real engine for all hash types and non-empty args', async () => {
+ const base=JSON.parse(await readFile(new URL('../../fixtures/submitted-valid.json',import.meta.url),'utf8')).request;
+ for(const kind of ['data','data1','data2','type']){
+  const request=structuredClone(base);const script=request.context.cells[0].output.lock;if(kind==='type'){request.context.cells[1].output.type=structuredClone(script);script.code_hash=scriptHash(request.context.cells[1].output.type);}script.hash_type=kind;script.args='0x123456';const result=await verifier.verify(request);assert.equal(result.ok,true,JSON.stringify(result));const candidate=scriptGroupCandidates(request).find(g=>g.group_type==='lock');const actual=result.groups.find(g=>g.group_type==='lock');assert.equal(candidate.script_hash,actual.script_hash,kind);assert.deepEqual(candidate.input_indices,actual.input_indices);assert.deepEqual(candidate.output_indices,actual.output_indices);
+ }
+});

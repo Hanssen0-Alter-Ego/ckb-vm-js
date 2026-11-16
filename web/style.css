@@ -34,3 +34,5 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 .sample-row{flex-direction:column}.sample-row select{flex:none;width:100%;min-height:44px}.sample-row button{width:100%}.outpoint-details textarea{height:62px;resize:vertical;overflow-wrap:anywhere;word-break:break-all}.outpoint-details input{width:100%}
 
 #group-details{border-top:1px solid var(--line);margin-top:12px}#group-details summary{font-size:13px}#group-members{white-space:pre-line;overflow-wrap:anywhere;color:#d4dfcd;margin:0 0 8px}
+
+.list-tools button{font-size:19px;font-weight:700;line-height:1;color:#e3eade}.list-tools button:disabled{color:#899585;opacity:.55}

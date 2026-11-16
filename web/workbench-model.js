@@ -1,4 +1,5 @@
 import { ckb } from './guided.js';
+import { blake2b } from './vendor/noble-hashes/blake2.js';
 
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const quantity = (value) => typeof value === 'string' && /^0x(?:0|[1-9a-f][0-9a-f]*)$/i.test(value);
@@ -13,6 +14,28 @@ export function resolveCell(request, outpoint) {
   if (wanted === null || !Array.isArray(request?.context?.cells)) return undefined;
   const matches = request.context.cells.filter(cell => key(cell?.out_point) === wanted);
   return matches.length === 1 ? matches[0] : undefined;
+}
+
+/** CKB script hash: BLAKE2b-256 over the Molecule-encoded Script table. */
+export function scriptHash(script) {
+  const types={data:0,type:1,data1:2,data2:4};
+  if(!object(script)||!hash(script.code_hash)||!Object.hasOwn(types,script.hash_type)||!bytes(script.args))throw new Error('A script needs a 32-byte code hash, a known hash type, and even-length hex args.');
+  const length=(script.args.length-2)/2;if(length>0xffffffff-53)throw new Error('Script arguments are too long.');
+  const raw=new Uint8Array(53+length),view=new DataView(raw.buffer);
+  view.setUint32(0,raw.length,true);view.setUint32(4,16,true);view.setUint32(8,48,true);view.setUint32(12,49,true);
+  for(let i=0;i<32;i++)raw[16+i]=parseInt(script.code_hash.slice(2+i*2,4+i*2),16);
+  raw[48]=types[script.hash_type];view.setUint32(49,length,true);
+  for(let i=0;i<length;i++)raw[53+i]=parseInt(script.args.slice(2+i*2,4+i*2),16);
+  return `0x${Array.from(blake2b(raw,{dkLen:32,personalization:new TextEncoder().encode('ckb-default-hash')}),x=>x.toString(16).padStart(2,'0')).join('')}`;
+}
+
+/** Derive potential groups from supplied cells; the engine remains authoritative. */
+export function scriptGroupCandidates(request) {
+  const groups=new Map();const add=(kind,script,side,index)=>{if(script===null||script===undefined)return;let script_hash;try{script_hash=scriptHash(script);}catch{return;}const id=`${kind}:${script_hash}`;if(!groups.has(id))groups.set(id,{group_type:kind,script_hash,script,input_indices:[],output_indices:[]});groups.get(id)[side].push(index);};
+  const tx=request?.transaction;
+  (Array.isArray(tx?.inputs)?tx.inputs:[]).forEach((input,index)=>{const cell=resolveCell(request,input?.previous_output);if(!cell?.output)return;add('lock',cell.output.lock,'input_indices',index);add('type',cell.output.type,'input_indices',index);});
+  (Array.isArray(tx?.outputs)?tx.outputs:[]).forEach((output,index)=>{if(object(output))add('type',output.type,'output_indices',index);});
+  return [...groups.values()];
 }
 
 /** Existing script values, cloned so selecting one cannot alias another cell. */

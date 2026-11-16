@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { resolveCell, scriptChoices, inspectRequest, diagnosticMatchesCell, mutateCellList } from '../../web/workbench-model.js';
+import { resolveCell, scriptChoices, scriptHash, scriptGroupCandidates, inspectRequest, diagnosticMatchesCell, mutateCellList } from '../../web/workbench-model.js';
 const fixture = JSON.parse(await readFile(new URL('../../fixtures/submitted-valid.json', import.meta.url), 'utf8')).request;
 const request = () => structuredClone(fixture);
 
@@ -177,4 +177,10 @@ test('input reference updates all aliases without losing metadata or fetching or
 test('diagnostics map exact entity paths and resolved context cells to their own cards',()=>{
  let req=mutateCellList(request(),'inputs','add');req=mutateCellList(req,'outputs','add');const input1cell=req.context.cells.indexOf(resolveCell(req,req.transaction.inputs[1].previous_output));
  assert.equal(diagnosticMatchesCell('transaction.outputs_data[0]','inputs',0,req),false);assert.equal(diagnosticMatchesCell('transaction.outputs_data[0]','outputs',0,req),true);assert.equal(diagnosticMatchesCell('transaction.outputs_data[10]','outputs',1,req),false);assert.equal(diagnosticMatchesCell('transaction.inputs[1].since','inputs',1,req),true);assert.equal(diagnosticMatchesCell('transaction.inputs[1].since','inputs',0,req),false);assert.equal(diagnosticMatchesCell(`context.cells[${input1cell}].output.lock.args`,'inputs',1,req),true);assert.equal(diagnosticMatchesCell(`context.cells[${input1cell}].output.lock.args`,'inputs',0,req),false);assert.equal(diagnosticMatchesCell('transaction.outputs[1].lock.args','outputs',1,req),true);assert.equal(diagnosticMatchesCell('transaction.outputs[1].lock.args','inputs',1,req),false);
+});
+
+
+test('script hash and candidates preserve exact CKB group identity and membership',async()=>{
+ const selected=JSON.parse(await readFile(new URL('../../fixtures/selected-lock.json',import.meta.url),'utf8')).request;const script=selected.context.cells[0].output.lock;const actual=scriptHash(script);assert.equal(actual,selected.script_group.script_hash);assert.notEqual(actual,script.code_hash);assert.equal(scriptHash({...script,hash_type:'data',args:'0x123456'}),'0x7817d437124010045b004333e8be998f7fa13a2cfa73eaf49a369c89b7c1c915');assert.equal(scriptHash({...script,hash_type:'data1',args:'0x123456'}),'0xe7f6c9bdb9e7014b62175630819dfeb331c2bab4f5780e54d7b6085b6968c5c1');assert.equal(scriptHash({...script,hash_type:'data2',args:'0x123456'}),'0xb833ae9d4cd000b75ecd0aa8e3b14ca69a199e694d92af78e0d58475903e37eb');for(const invalid of [{...script,args:'0xf'},{...script,hash_type:'future'},{...script,code_hash:'0x12'}])assert.throws(()=>scriptHash(invalid));
+ const typeFixture=JSON.parse(await readFile(new URL('../../fixtures/selected-type.json',import.meta.url),'utf8')).request;const groups=scriptGroupCandidates(typeFixture);assert.equal(groups.length,2);assert.deepEqual(groups.map(g=>[g.group_type,g.input_indices,g.output_indices]),[['lock',[0],[]],['type',[],[0]]]);assert.equal(groups[0].script_hash,groups[1].script_hash);const broken=structuredClone(typeFixture);broken.context.cells=[];assert.deepEqual(scriptGroupCandidates(broken).map(g=>g.group_type),['type']);assert.deepEqual(scriptGroupCandidates({}),[]);
 });

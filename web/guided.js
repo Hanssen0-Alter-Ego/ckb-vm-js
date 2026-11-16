@@ -42,6 +42,7 @@ export function explain(result, request) {
     return 'The engine did not report the verification scope. See Full engine response.';
   }
   const error = `${result.error?.code ?? ''} ${result.error?.message ?? ''}`;
+  if(result.error?.code==='Script' && /^ScriptNotFound\b/.test(result.error?.message ?? ''))return 'The selected script group was not found in this snapshot. Open Settings → Verification scope and choose a listed group, or enter the full script hash (not the code hash). Check the group kind and supplied cells.';
   const missingExtension=result.error?.code==='MissingContext' && /^explicit extension data or null required for (0x[0-9a-f]{64})$/i.exec(result.error?.message ?? '');
   if(missingExtension){
     const hash=missingExtension[1];const refs=Array.isArray(request?.transaction?.header_deps)?request.transaction.header_deps.flatMap((h,i)=>typeof h==='string'&&h.toLowerCase()===hash.toLowerCase()?[`Header dep index ${i}`]:[]):[];
