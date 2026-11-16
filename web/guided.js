@@ -56,6 +56,8 @@ export function explain(result, request) {
   const badLength = result.error?.code === 'InvalidRequest' && /^invalid length ([0-9]+), expected a 0x-prefixed hex string with 64 digits(?: at line [0-9]+ column [0-9]+)?$/.exec(result.error?.message ?? '');
   if (badLength) return `A value has ${badLength[1]} hex digits; it must have 64 (32 bytes), after the 0x prefix. The engine did not identify the field. Check the request and open Full engine response for the original error.`;
 
+  if(result.error?.code==='InvalidRequest')return 'The supplied request could not be processed, so no scripts were run. Check the input and open Full engine response for the original error.';
+
   if(result.error?.code==='Script' && /^ScriptNotFound\b/.test(result.error?.message ?? ''))return 'The selected script group was not found in this snapshot. Open Settings → Verification scope and choose a listed group, or enter the full script hash (not the code hash). Check the group kind and supplied cells.';
   const missingExtension=result.error?.code==='MissingContext' && /^explicit extension data or null required for (0x[0-9a-f]{64})$/i.exec(result.error?.message ?? '');
   if(missingExtension){

@@ -1,12 +1,14 @@
 import { createWorkbench } from './workbench.js';
 import { parseLossless, stringifyLossless } from './lossless-json.js';
 import { explain, verifiedGroupSummary, requestedScope } from './guided.js';
+import { inspectRequest } from './workbench-model.js';
 import { createWorkerVerifier } from './js/index.js';
 const $ = (id) => document.getElementById(id);
 const limit = 2 * 1024 * 1024;
 let active;
 let loading = false;
 let dirty = false;
+let unsaved = false;
 let loadedSample = null;
 let sourceName = 'None';
 const exampleMenu=document.querySelector('.example-menu');
@@ -19,11 +21,12 @@ const workbench = createWorkbench($('workbench'), {
   read: () => readRequest($('request').value),
   write(request) { $('request').value = stringifyLossless(request); markEdited(); },
   edited: markEdited,
-  capture: () => ({ text: $('request').value, dirty, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, requestedScope: $('requested-scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden, groupTitle: $('group-title').textContent, groupMembers: $('group-members').textContent, groupHidden: $('group-details').hidden, groupOpen: $('group-details').open }),
-  restore(saved) { $('request').value = saved.text; dirty = saved.dirty; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; $('requested-scope').textContent = saved.requestedScope; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; showSource(); },
+  capture: () => ({ text: $('request').value, dirty, unsaved, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, requestedScope: $('requested-scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden, groupTitle: $('group-title').textContent, groupMembers: $('group-members').textContent, groupHidden: $('group-details').hidden, groupOpen: $('group-details').open }),
+  restore(saved) { $('request').value = saved.text; dirty = saved.dirty; unsaved = saved.unsaved; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; $('requested-scope').textContent = saved.requestedScope; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; try{renderRepairs(JSON.parse(saved.result),readRequest(saved.text));}catch{hideRepairs();} showSource(); },
 });
+window.addEventListener('beforeunload', event => { if(unsaved||workbench.hasPendingDraft()){event.preventDefault();event.returnValue='';} });
 function markEdited() {
-  dirty = true; showSource();
+  dirty = true; unsaved = true; showSource();
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
   $('result').textContent = 'Previous output cleared because the input changed.';
   $('explanation').textContent = 'No verification has run for this input.';
@@ -31,9 +34,11 @@ function markEdited() {
 }
 
 function status(label, kind = '') { document.querySelector('.output').hidden = ['Ready','Loading sample','Edited'].includes(label);  $('status').textContent = label; $('status').dataset.kind = kind; }
-function clearOutput() { $('requested-scope').textContent = '—'; for (const id of ['scope', 'cycles', 'elapsed']) $(id).textContent = '—'; $('group-title').textContent=''; $('group-members').textContent=''; $('group-details').hidden=true; $('group-details').open=false; }
+function hideRepairs(){const area=$('repair-actions');area.hidden=true;area.replaceChildren();}
+function renderRepairs(result,request){hideRepairs();if(result?.error?.code!=='InvalidRequest')return;const issues=inspectRequest(request).diagnostics.filter(d=>/^transaction\.(?:outputs_data|witnesses)\[\d+\]$/.test(d.path));const area=$('repair-actions');for(const d of issues){const match=/^transaction\.(outputs_data|witnesses)\[(\d+)\]$/.exec(d.path),index=Number(match[2]);if(match[1]==='outputs_data'&&(!Array.isArray(request?.transaction?.outputs)||!request.transaction.outputs[index]||typeof request.transaction.outputs[index]!=='object'))continue;const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=match[1]==='outputs_data'?`Edit output index ${index} data`:`Edit witness index ${index}`;button.onclick=()=>workbench.focusDiagnostic(d.path);area.append(button);}if(area.children.length){const hint=document.createElement('p');hint.textContent='Preflight also found possible formatting issues; these may not be the cause of this error.';area.prepend(hint);area.hidden=false;}}
+function clearOutput() { hideRepairs(); $('requested-scope').textContent = '—'; for (const id of ['scope', 'cycles', 'elapsed']) $(id).textContent = '—'; $('group-title').textContent=''; $('group-members').textContent=''; $('group-details').hidden=true; $('group-details').open=false; }
 function fail(error, stage = 'Input error') {
-  status(stage, 'error'); $('summary').textContent = error.message;
+  hideRepairs(); status(stage, 'error'); $('summary').textContent = error.message;
   $('explanation').textContent = error.message; $('explanation').dataset.kind = 'error';
   $('result').textContent = JSON.stringify({ stage, name: error.name, message: error.message }, null, 2);
 }
@@ -64,7 +69,7 @@ async function loadSample(initial = false) {
     $('explanation').textContent = 'No verification has run for this input.';
     $('result').textContent = 'No verification has run for this input.';
     $('summary').textContent = 'Synthetic fixture loaded. Inspect the supplied consensus before running.';
-    loadedSample = $('sample').value; sourceName = $('sample').selectedOptions[0]?.textContent ?? 'Example'; dirty = false; showSource(); status('Ready');if(!initial)exampleMenu.open=false;
+    loadedSample = $('sample').value; sourceName = $('sample').selectedOptions[0]?.textContent ?? 'Example'; dirty = false; unsaved = false; showSource(); status('Ready');if(!initial)exampleMenu.open=false;
   } catch (error) { $('sample').value = loadedSample ?? ''; fail(error, 'Sample error'); }
   finally { loading = false; workbench.refresh(true); busy(false); }
 }
@@ -79,13 +84,13 @@ $('upload').addEventListener('change', async (event) => {
     const request = readRequest(await file.text());
     $('advanced').open = false; $('explanation').textContent = 'Imported data has not been verified.';
     $('request').value = stringifyLossless(request);
-    workbench.refresh(true); dirty = false; loadedSample = null; sourceName = 'Imported JSON'; $('sample').value = ''; $('load').disabled = true; showSource(); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
+    workbench.refresh(true); dirty = false; unsaved = false; loadedSample = null; sourceName = 'Imported JSON'; $('sample').value = ''; $('load').disabled = true; showSource(); status('Ready'); $('summary').textContent = 'Imported locally. Inspect the request before running.';
     $('result').textContent = 'No verification has run for this input.';
   } catch (error) { fail(error); }
   event.target.value = '';
 });
 $('request').addEventListener('input', () => {
-  dirty = true; showSource();
+  dirty = true; unsaved = true; showSource();
   workbench.refresh(true);
   $('explanation').textContent = 'Input changed. The previous result no longer applies.';
   clearOutput(); status('Edited'); $('summary').textContent = 'Input changed. Run to verify this version.';
@@ -96,7 +101,7 @@ $('download').addEventListener('click', () => {
   try {
     const content = stringifyLossless(readRequest($('request').value));
     const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
-    const link = document.createElement('a'); link.href = url; link.download = 'ckb-verification-request.json'; link.click();
+    const link = document.createElement('a'); link.href = url; link.download = 'ckb-verification-request.json'; link.click(); unsaved = false;
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (error) { clearOutput(); fail(error); }
 });
@@ -127,10 +132,11 @@ $('run').addEventListener('click', async () => {
     const groups=verifiedGroupSummary(result,request);if(groups){$('group-title').textContent=groups.title;$('group-members').textContent=groups.text;$('group-details').hidden=false;$('group-details').open=groups.selected;}
     $('cycles').textContent = result.cycles === undefined ? '—' : BigInt(result.cycles).toLocaleString('en-US');
     $('explanation').textContent = explain(result, request); $('explanation').dataset.kind = result.ok ? '' : 'error';
+    renderRepairs(result,request);
     status(result.ok ? 'Passed snapshot' : 'Rejected', result.ok ? '' : 'error');
     $('summary').textContent = result.ok
       ? (result.scope === 'script_group' ? 'Selected script group passed.' : result.scope === 'transaction' ? 'Transaction passed for the supplied snapshot.' : 'Verification passed; scope is unavailable.')
-      : 'Snapshot rejected. See the explanation below; the exact engine response is in Full engine response.';
+      : result.error?.code==='InvalidRequest' ? 'Invalid request. The verifier did not run scripts.' : 'Snapshot rejected. See the explanation below; the exact engine response is in Full engine response.';
   } catch (error) { fail(error, error.message === 'Cancelled' ? 'Cancelled' : 'Execution error'); }
   finally {
     clearTimeout(timeout); verifier?.dispose(); worker.terminate();

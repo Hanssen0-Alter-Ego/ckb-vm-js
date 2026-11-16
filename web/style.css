@@ -53,3 +53,5 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 
 /* On short or highly zoomed screens, let the heading scroll rather than cover controls. */
 @media(max-height:420px){.inspector-heading{position:static}.inspector input,.inspector textarea{scroll-margin-block:16px}}
+
+.repair-actions{margin-top:12px}.repair-actions p{margin-bottom:8px}.repair-actions button{margin:0 8px 8px 0}
