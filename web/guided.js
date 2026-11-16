@@ -30,6 +30,13 @@ export function explain(result, request) {
     const where=refs.length?`${refs.join(', ')} (${hash})`:`block ${hash} (a header dependency or supplied cell origin)`;
     return `Missing extension information for ${where}. The snapshot must explicitly supply extension bytes or assert no extension (null). For a header dependency, open its details and choose Extension information. Unspecified does not mean no extension.`;
   }
+  const invalidGroup=result.error?.code==='Resolution' && /^InvalidDepGroup\(OutPoint\(0x([0-9a-f]{64})([0-9a-f]{8})\)\)$/i.exec(result.error?.message ?? '');
+  if(invalidGroup){
+    const hash=`0x${invalidGroup[1]}`;const encoded=invalidGroup[2];const index=parseInt(encoded.match(/../g).reverse().join(''),16);
+    const matches=Array.isArray(request?.transaction?.cell_deps)?request.transaction.cell_deps.flatMap((dep,i)=>{const point=dep?.out_point;try{return dep?.dep_type==='dep_group'&&typeof point?.tx_hash==='string'&&point.tx_hash.toLowerCase()===hash.toLowerCase()&&typeof point?.index==='string'&&/^0x[0-9a-f]+$/i.test(point.index)&&BigInt(point.index)===BigInt(index)?[i]:[];}catch{return [];}}):[];
+    const location=matches.length?matches.map(i=>`Cell dep index ${i}`).join(', '):`outpoint ${hash}:0x${index.toString(16)}`;
+    return `The engine could not resolve the dependency group at ${location}. Check the group cell's encoded member outpoints and supplied cells. Open Full engine response for the exact error.`;
+  }
   if (/OutputsSumOverflow|OutputsCapacity|CapacityOverflow|outputs capacity.*inputs|outputs sum/i.test(error)) return 'The new cells contain more CKB than the inputs provide. A transaction cannot create extra CKB. Lower the new cell capacity and run again.';
   if (/ExceededMaximumCycles|CyclesExceeded|cycles.*exceed|exceed.*cycles/i.test(error)) return 'The computation budget ran out. The VM could not finish within this limit. Try the normal cycle budget; this does not change the transaction fee.';
   if (/Script.*ValidationFailure|ValidationFailure|script_failure/i.test(error)) return 'A script rejected the transaction. In the “Rejecting lock” example, the toy lock intentionally returns a failure. A valid balance alone is not enough.';

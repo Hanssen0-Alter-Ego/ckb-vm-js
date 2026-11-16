@@ -30,3 +30,8 @@ test('explanations follow returned engine results rather than chosen experiment'
 test('missing extension explanation identifies the actual header without guessing null',()=>{
  const hash=`0x${'ab'.repeat(32)}`;const result={ok:false,error:{code:'MissingContext',message:`explicit extension data or null required for ${hash}`}};const explanation=explain(result,{transaction:{header_deps:[hash]}});assert.match(explanation,/Header dep index 0/);assert.ok(explanation.includes(hash));assert.match(explanation,/Unspecified does not mean no extension/);assert.match(explain(result,{transaction:{header_deps:[]}}),/supplied cell origin/);assert.match(explain({ok:false,error:{code:'Other',message:result.error.message}}),/Full engine response/);
 });
+
+
+test('invalid dep group maps the encoded outpoint only to matching group references',()=>{
+ const hash='ab'.repeat(32),message=`InvalidDepGroup(OutPoint(0x${hash}02000000))`,result={ok:false,error:{code:'Resolution',message}};const request={transaction:{cell_deps:[{dep_type:'code',out_point:{tx_hash:`0x${hash}`,index:'0x2'}},{dep_type:'dep_group',out_point:{tx_hash:`0x${hash}`,index:'0x2'}}]}};assert.match(explain(result,request),/Cell dep index 1/);assert.doesNotMatch(explain(result,request),/Cell dep index 0/);assert.match(explain(result,{transaction:{cell_deps:[]}}),/outpoint 0x/);assert.match(explain({ok:false,error:{code:'Other',message}},request),/Full engine response/);
+});
