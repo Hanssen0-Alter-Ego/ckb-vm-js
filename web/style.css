@@ -96,3 +96,5 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 
 /* Inspector edits reveal and focus fields synchronously, including restored disclosures. */
 .inspector details::details-content{transition:none}
+
+@media(max-width:480px){.dep-rail{grid-template-columns:minmax(0,1fr) auto}.dep-rail>.rail-label{grid-column:1;grid-row:1}.dep-rail>.secondary{grid-column:2;grid-row:1}.dep-items{grid-column:1/-1;grid-row:2}.dep-items .dep-dot{max-width:100%;height:auto;min-height:44px;padding-block:8px}}
