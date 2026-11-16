@@ -17,7 +17,7 @@ const draftPrefix = 'ckb-vm-js:draft:';
 const draftKey = `${draftPrefix}v1:${crypto.randomUUID()}`;
 let draftAvailable = false;
 let draftFailure = false;
-function draftStatus(message) { $('draft-status').textContent = message; }
+function draftStatus(message) { if ($('draft-status').textContent !== message) $('draft-status').textContent = message; }
 function persistDraft() {
   try {
     const record = { version: 1, text: $('request').value, source: sourceName, sample: loadedSample, time: new Date().toISOString() };
@@ -124,7 +124,7 @@ $('load').addEventListener('click', () => loadSample());
 $('sample').addEventListener('change', () => { $('load').disabled = !$('sample').value; });
 $('upload').addEventListener('change', async (event) => {
   const file = event.target.files[0]; if (!file || active) return;
-  if (dirty && !confirm('Replace your edited transaction with this file? Export JSON first if you want to keep it.')) { event.target.value = ''; return; }
+  if ((dirty || sourceName === 'Imported JSON') && !confirm('Replace your edited transaction with this file? Export JSON first if you want to keep it.')) { event.target.value = ''; return; }
   clearOutput();
   try {
     if (file.size > limit) throw new Error('File exceeds the 2 MiB limit.');
