@@ -1,6 +1,6 @@
 import { createWorkbench } from './workbench.js';
 import { parseLossless, stringifyLossless } from './lossless-json.js';
-import { explain } from './guided.js';
+import { explain, verifiedGroupSummary } from './guided.js';
 import { createWorkerVerifier } from './js/index.js';
 const $ = (id) => document.getElementById(id);
 const limit = 2 * 1024 * 1024;
@@ -19,8 +19,8 @@ const workbench = createWorkbench($('workbench'), {
   read: () => readRequest($('request').value),
   write(request) { $('request').value = stringifyLossless(request); markEdited(); },
   edited: markEdited,
-  capture: () => ({ text: $('request').value, dirty, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden }),
-  restore(saved) { $('request').value = saved.text; dirty = saved.dirty; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; showSource(); },
+  capture: () => ({ text: $('request').value, dirty, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden, groupTitle: $('group-title').textContent, groupMembers: $('group-members').textContent, groupHidden: $('group-details').hidden, groupOpen: $('group-details').open }),
+  restore(saved) { $('request').value = saved.text; dirty = saved.dirty; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; showSource(); },
 });
 function markEdited() {
   dirty = true; showSource();
@@ -31,7 +31,7 @@ function markEdited() {
 }
 
 function status(label, kind = '') { document.querySelector('.output').hidden = ['Ready','Loading sample','Edited'].includes(label);  $('status').textContent = label; $('status').dataset.kind = kind; }
-function clearOutput() { for (const id of ['scope', 'cycles', 'elapsed']) $(id).textContent = '—'; }
+function clearOutput() { for (const id of ['scope', 'cycles', 'elapsed']) $(id).textContent = '—'; $('group-title').textContent=''; $('group-members').textContent=''; $('group-details').hidden=true; $('group-details').open=false; }
 function fail(error, stage = 'Input error') {
   status(stage, 'error'); $('summary').textContent = error.message;
   $('explanation').textContent = error.message; $('explanation').dataset.kind = 'error';
@@ -122,12 +122,13 @@ $('run').addEventListener('click', async () => {
     verifier = await Promise.race([createWorkerVerifier({ worker }), stopped]);
     const result = await Promise.race([verifier.verify(requestJson), stopped]);
     $('result').textContent = JSON.stringify(result, null, 2);
-    $('scope').textContent = (result.scope ?? (request.script_group ? 'script_group' : 'transaction')) === 'script_group' ? 'Selected script group' : 'Transaction';
+    $('scope').textContent = !result.ok ? 'Not determined' : result.scope === 'script_group' ? 'Selected script group' : result.scope === 'transaction' ? 'Transaction' : 'Not determined';
+    const groups=verifiedGroupSummary(result,request);if(groups){$('group-title').textContent=groups.title;$('group-members').textContent=groups.text;$('group-details').hidden=false;$('group-details').open=groups.selected;}
     $('cycles').textContent = result.cycles === undefined ? '—' : BigInt(result.cycles).toLocaleString('en-US');
     $('explanation').textContent = explain(result, request); $('explanation').dataset.kind = result.ok ? '' : 'error';
     status(result.ok ? 'Passed snapshot' : 'Rejected', result.ok ? '' : 'error');
     $('summary').textContent = result.ok
-      ? (result.scope === 'script_group' ? 'Selected script group passed. Other groups and full transaction validity are not asserted.' : 'Transaction passed against the supplied snapshot and consensus. Chain state remains unverified.')
+      ? (result.scope === 'script_group' ? 'Selected script group passed.' : result.scope === 'transaction' ? 'Transaction passed for the supplied snapshot.' : 'Verification passed; scope is unavailable.')
       : 'Snapshot rejected. See the explanation below; the exact engine response is in Full engine response.';
   } catch (error) { fail(error, error.message === 'Cancelled' ? 'Cancelled' : 'Execution error'); }
   finally {

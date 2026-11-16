@@ -19,10 +19,28 @@ export function guidedRequest(base, amount, budget) {
   request.max_cycles = `0x${BigInt(budget).toString(16)}`;
   return request;
 }
+/** Describe only groups confirmed by a successful engine result. */
+export function verifiedGroupSummary(result, request) {
+  if (result?.ok !== true || !['script_group','transaction'].includes(result.scope)) return null;
+  const selected=result.scope==='script_group';
+  const unavailable={title:'Script group membership',text:'Group membership is unavailable in this engine response. See Full engine response.',selected};
+  const inputs=request?.transaction?.inputs,outputs=request?.transaction?.outputs;
+  if(!Array.isArray(result.groups)||!Array.isArray(inputs)||!Array.isArray(outputs))return unavailable;
+  let groups=result.groups;
+  if(selected){const choice=request?.script_group;if(!['lock','type'].includes(choice?.group_type)||typeof choice?.script_hash!=='string'||!/^0x[0-9a-f]{64}$/i.test(choice.script_hash))return unavailable;groups=groups.filter(g=>g?.group_type===choice.group_type&&typeof g.script_hash==='string'&&g.script_hash.toLowerCase()===choice.script_hash.toLowerCase());if(groups.length!==1)return unavailable;}
+  const valid=(g)=>['lock','type'].includes(g?.group_type)&&typeof g.script_hash==='string'&&/^0x[0-9a-f]{64}$/i.test(g.script_hash)&&Array.isArray(g.input_indices)&&Array.isArray(g.output_indices)&&g.input_indices.every(i=>Number.isSafeInteger(i)&&i>=0&&i<inputs.length)&&g.output_indices.every(i=>Number.isSafeInteger(i)&&i>=0&&i<outputs.length);
+  if(!groups.every(valid))return unavailable;
+  const members=indices=>indices.length?indices.map(i=>`index ${i}`).join(', '):'none';
+  const lines=groups.map(g=>`${g.group_type==='lock'?'Lock':'Type'} group — Inputs: ${members(g.input_indices)}; Outputs: ${members(g.output_indices)}.`);
+  return {title:selected?'Selected script group members':`Verified script groups (${groups.length})`,text:lines.length?lines.join('\n'):'The engine reported no script groups.',selected};
+}
+
 export function explain(result, request) {
-  if (result.ok) return result.scope === 'script_group'
-    ? 'The selected script accepted this snapshot. Other scripts and the complete transaction were not checked.'
-    : `The supplied transaction passed. Its inputs, outputs and scripts satisfied the supplied rules.${result.fee !== undefined ? `\nFee in this snapshot: ${ckb(result.fee)} CKB.` : ''}\nThis does not check whether the cells really exist or are unspent on a network.`;
+  if (result.ok) {
+    if(result.scope==='script_group')return 'Other script groups and the complete transaction were not checked. Chain state was not checked.';
+    if(result.scope==='transaction')return `Inputs, outputs and scripts satisfied the supplied rules.${result.fee !== undefined ? `\nFee in this snapshot: ${ckb(result.fee)} CKB.` : ''}\nThis does not check whether cells exist or are unspent on a network.`;
+    return 'The engine did not report the verification scope. See Full engine response.';
+  }
   const error = `${result.error?.code ?? ''} ${result.error?.message ?? ''}`;
   const missingExtension=result.error?.code==='MissingContext' && /^explicit extension data or null required for (0x[0-9a-f]{64})$/i.exec(result.error?.message ?? '');
   if(missingExtension){

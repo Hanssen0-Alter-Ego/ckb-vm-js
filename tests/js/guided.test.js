@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ckbToHex, ckb, guidedRequest, explain } from '../../web/guided.js';
+import { ckbToHex, ckb, guidedRequest, explain, verifiedGroupSummary } from '../../web/guided.js';
 test('guided CKB decimals are lossless beyond Number safe integer range', () => {
   for (const value of ['0', '0.00000001', '999.00000001']) {
     assert.equal(ckb(ckbToHex(value)), value);
@@ -39,4 +39,9 @@ test('invalid dep group maps the encoded outpoint only to matching group referen
 
 test('script failure reports only a recognized source and exit code',()=>{
  const result={ok:false,error:{code:'InvalidTransaction',message:'Script(TransactionScriptError { source: Inputs[0].Lock, cause: ValidationFailure: see error code -1 on page https://example.invalid/#-1 })'}};assert.match(explain(result),/Inputs\[0\]\.Lock, error code -1/);assert.doesNotMatch(explain({...result,error:{...result.error,message:result.error.message.replace('Inputs[0].Lock','Unknown[0].Lock')}}),/Unknown\[0\]/);assert.doesNotMatch(explain({...result,error:{...result.error,code:'Other'}}),/Inputs\[0\]/);
+});
+
+
+test('verified group display filters both type and hash, and refuses unavailable results',()=>{
+ const hash=`0x${'ab'.repeat(32)}`;const lock={group_type:'lock',script_hash:hash,input_indices:[0],output_indices:[]};const type={group_type:'type',script_hash:hash,input_indices:[],output_indices:[0]};const request={transaction:{inputs:[{}],outputs:[{}]},script_group:{group_type:'lock',script_hash:hash}};const result={ok:true,scope:'script_group',groups:[lock,type]};assert.equal(verifiedGroupSummary(result,request).text,'Lock group — Inputs: index 0; Outputs: none.');request.script_group.group_type='type';assert.equal(verifiedGroupSummary(result,request).text,'Type group — Inputs: none; Outputs: index 0.');assert.match(verifiedGroupSummary({...result,groups:[lock]},request).text,/unavailable/);assert.match(verifiedGroupSummary({...result,groups:[{...type,output_indices:[1]}]},request).text,/unavailable/);assert.equal(verifiedGroupSummary({ok:false,groups:[lock]},request),null);assert.equal(verifiedGroupSummary({ok:true,groups:[lock]},request),null);assert.match(explain({ok:true}),/did not report/);const full=verifiedGroupSummary({...result,scope:'transaction'},request);assert.match(full.text,/Lock group/);assert.match(full.text,/Type group/);assert.equal(full.selected,false);
 });
