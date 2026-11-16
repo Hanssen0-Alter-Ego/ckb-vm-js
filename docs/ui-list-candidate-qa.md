@@ -99,3 +99,15 @@ production URL as evidence for this candidate.
 
 Run the full browser suite on the candidate before integration. After deployment,
 open a fresh independent conversation for browser acceptance of the deployed SHA.
+
+## Remote CI follow-up
+
+Actions run 43956302523 executed the previously blocked browser suite: 84/86 passed.
+It also passed the native checks, fresh WASM build, both differential comparisons,
+release guard/workflow validation, JS unit tests and typecheck. The browser failures
+identified a real full-precision capacity overflow after widening the action rail,
+and an older nested-session test whose setup expected a duplicate code dependency.
+The follow-up gives long capacities the full card width with a horizontal action
+rail, and selects a different resolved cell in that test while retaining its shared
+input/dependency edit and outer rollback assertions. The suite must pass on the
+follow-up commit before deployment; automated browser results are not visual acceptance.

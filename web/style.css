@@ -81,3 +81,7 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 .inspector details[open]::details-content{overflow:visible;padding-bottom:4px}
 .inspector{overscroll-behavior:contain}
 @media(max-width:420px){.header-list-row{flex-wrap:wrap}.header-list-info{flex-basis:100%}.header-sort{flex-direction:row}.context-list-entry{flex-wrap:wrap}}
+
+/* Full precision capacities need the card width, without shrinking text. */
+.cell-row:has(.capacity-long){grid-template-columns:minmax(0,1fr)}
+.cell-row:has(.capacity-long) .list-tools{flex-direction:row;justify-content:flex-end}
