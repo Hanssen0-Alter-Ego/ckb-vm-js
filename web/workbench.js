@@ -121,7 +121,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore })
         const witnesses=next.transaction.witnesses;const moved=action==='up'||action==='down';const to=index+(action==='up'?-1:1);
         const positions=moved?[Math.min(index,to),Math.max(index,to)]:[];
         const detail=positions.map(i=>{const point=next.transaction.inputs[i]?.previous_output;const witness=witnesses[i];const value=typeof witness==='string'?(witness.length>18?`${witness.slice(0,18)}…`:witness):'invalid value';return `Input index ${i}: ${outpointName(point,next)}; witness index ${i}: ${i<witnesses.length?value:'not supplied'}.`;}).join(' ');
-        witnessNotice=`${moved?`Input moved from index ${index} to ${to}. `:'Input list changed. '}Witnesses stayed in their original positions and were not edited. ${detail}Same-position entries are not guaranteed pairs; script-group relationships may differ.`;
+        witnessNotice=`${moved?`Input moved from index ${index} to ${to}. `:'Input list changed. '}Witnesses stayed in their original positions and were not edited. ${detail} Same-position entries are not guaranteed pairs; script-group relationships may differ.`;
       } else witnessNotice='';
     }
     if(action==='up')selection=selection?`${kind}:${index-1}`:null;

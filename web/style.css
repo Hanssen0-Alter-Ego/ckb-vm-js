@@ -28,3 +28,5 @@
 .placeholder-note{display:block;color:#c0cabe;font-size:11px;margin:0 0 6px}.script-legend{margin:7px 0 14px}.witness-notice{overflow-wrap:anywhere}
 
 body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px}.field-error:empty{display:none}.inspector input{scroll-margin-block:85px}.dep-rail>.secondary{border-color:var(--line)}
+
+.cell-identity{color:#d4dfcd;font-size:12px}.placeholder-note{color:#d4dfcd;font-size:12px}@media(max-width:600px){.cell-identity{font-size:12px}}

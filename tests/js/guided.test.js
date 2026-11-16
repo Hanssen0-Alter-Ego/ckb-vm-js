@@ -20,7 +20,7 @@ test('guided mutation does not overwrite fixture or other context', () => {
 test('explanations follow returned engine results rather than chosen experiment', () => {
   assert.match(explain({ok:false,error:{code:'InvalidTransaction',message:'OutputsSumOverflow'}}),/cannot create extra/);
   assert.match(explain({ok:false,error:{code:'InvalidTransaction',message:'ExceededMaximumCycles'}}),/budget ran out/);
-  assert.match(explain({ok:false,error:{code:'ValidationFailure'}}),/Rejecting lock/);
+  assert.match(explain({ok:false,error:{code:'ValidationFailure'}}),/script rejected/i);
   assert.match(explain({ok:false,error:{code:'Other'}}),/Full engine response/);
   assert.match(explain({ok:true,scope:'script_group'}),/were not checked/);
   assert.match(explain({ok:true,scope:'transaction',fee:'0x1'}),/0.00000001 CKB/);
@@ -34,4 +34,9 @@ test('missing extension explanation identifies the actual header without guessin
 
 test('invalid dep group maps the encoded outpoint only to matching group references',()=>{
  const hash='ab'.repeat(32),message=`InvalidDepGroup(OutPoint(0x${hash}02000000))`,result={ok:false,error:{code:'Resolution',message}};const request={transaction:{cell_deps:[{dep_type:'code',out_point:{tx_hash:`0x${hash}`,index:'0x2'}},{dep_type:'dep_group',out_point:{tx_hash:`0x${hash}`,index:'0x2'}}]}};assert.match(explain(result,request),/Cell dep index 1/);assert.doesNotMatch(explain(result,request),/Cell dep index 0/);assert.match(explain(result,{transaction:{cell_deps:[]}}),/outpoint 0x/);assert.match(explain({ok:false,error:{code:'Other',message}},request),/Full engine response/);
+});
+
+
+test('script failure reports only a recognized source and exit code',()=>{
+ const result={ok:false,error:{code:'InvalidTransaction',message:'Script(TransactionScriptError { source: Inputs[0].Lock, cause: ValidationFailure: see error code -1 on page https://example.invalid/#-1 })'}};assert.match(explain(result),/Inputs\[0\]\.Lock, error code -1/);assert.doesNotMatch(explain({...result,error:{...result.error,message:result.error.message.replace('Inputs[0].Lock','Unknown[0].Lock')}}),/Unknown\[0\]/);assert.doesNotMatch(explain({...result,error:{...result.error,code:'Other'}}),/Inputs\[0\]/);
 });

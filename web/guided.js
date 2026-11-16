@@ -39,7 +39,9 @@ export function explain(result, request) {
   }
   if (/OutputsSumOverflow|OutputsCapacity|CapacityOverflow|outputs capacity.*inputs|outputs sum/i.test(error)) return 'The new cells contain more CKB than the inputs provide. A transaction cannot create extra CKB. Lower the new cell capacity and run again.';
   if (/ExceededMaximumCycles|CyclesExceeded|cycles.*exceed|exceed.*cycles/i.test(error)) return 'The computation budget ran out. The VM could not finish within this limit. Try the normal cycle budget; this does not change the transaction fee.';
-  if (/Script.*ValidationFailure|ValidationFailure|script_failure/i.test(error)) return 'A script rejected the transaction. In the “Rejecting lock” example, the toy lock intentionally returns a failure. A valid balance alone is not enough.';
+  const scriptFailure=result.error?.code==='InvalidTransaction' && /^Script\(TransactionScriptError \{ source: (Inputs|Outputs)\[([0-9]+)\]\.(Lock|Type), cause: ValidationFailure: see error code (-?[0-9]+) on page \S+ \}\)$/.exec(result.error?.message ?? '');
+  if(scriptFailure){const [,side,index,kind,code]=scriptFailure;return `A script rejected this snapshot: ${side}[${index}].${kind}, error code ${code}. Open Full engine response for the original error.`;}
+  if (/Script.*ValidationFailure|ValidationFailure|script_failure/i.test(error)) return 'A script rejected this snapshot. Open Full engine response for its exact reason.';
   if (/OccupiedCapacity|InsufficientCellCapacity/i.test(error)) return 'The new cell is too small to hold its data and scripts. Increase its capacity and run again.';
   return 'The engine rejected this snapshot. Open Full engine response for its exact reason. A failure can come from a transaction rule, a script, or incomplete supplied context.';
 }
