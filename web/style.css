@@ -85,3 +85,11 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 /* Full precision capacities need the card width, without shrinking text. */
 .cell-row:has(.capacity-long){grid-template-columns:minmax(0,1fr)}
 .cell-row:has(.capacity-long) .list-tools{flex-direction:row;justify-content:flex-end}
+
+/* A shared footer avoids content-dependent action placement and narrow cards. */
+.cell-row,.cell-row:has(.capacity-long){grid-template-columns:minmax(0,1fr)}
+.list-tools,.cell-row:has(.capacity-long) .list-tools{flex-direction:row;justify-content:flex-end}
+@media(max-width:800px){.cell-columns{grid-template-columns:1fr}}
+.context-entry-summary{display:block;margin-top:6px;color:var(--muted);font:11px/1.5 ui-monospace,monospace;overflow-wrap:anywhere}
+.context-list-entry>button{min-width:68px;max-width:none;white-space:nowrap}
+@media(max-width:420px){.context-list-entry{flex-wrap:nowrap}}

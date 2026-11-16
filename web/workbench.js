@@ -157,7 +157,8 @@ export function createWorkbench(root, { read, write, edited, capture, restore, b
   }
   function refresh(resetIdentity=false) {
     if(resetIdentity){identities.inputs=[];identities.outputs=[];resolvedIds.clear();draftNames.clear();placeholderPoints.clear();witnessNotice='';nextDraft=0;selection=null;sessionBaseline=null;depSubsession=null;removalUndo=null;duplicateNotice=null;duplicateFocus=null;orderNotice=null;}
-    const opened = new Set([...root.querySelectorAll('details[open]')].map(d => d.querySelector('summary')?.textContent));
+    const opened = new Set([...root.querySelectorAll('details[open]')].map(d => d.dataset.disclosureKey??d.querySelector('summary')?.textContent));
+    const activeContextPath=document.activeElement?.dataset.contextPath;
     const activeLabel = root.querySelector('dialog[open]')?.contains(document.activeElement) ? document.activeElement.closest('label')?.firstChild?.textContent : null;
     root.querySelector('dialog')?.close();
     root.replaceChildren(); error=el('p','','wb-error');error.setAttribute('role','alert');root.append(error);
@@ -238,13 +239,20 @@ export function createWorkbench(root, { read, write, edited, capture, restore, b
     }
     overview(r, report);
     if(activeLabel) [...root.querySelectorAll('dialog label')].find(n=>n.firstChild?.textContent===activeLabel)?.querySelector('input,select,textarea')?.focus();
-    root.querySelectorAll('details').forEach(d => { d.open = opened.has(d.querySelector('summary')?.textContent)||d.dataset.defaultOpen==='true'; });
+    root.querySelectorAll('details').forEach(d => { d.open = opened.has(d.dataset.disclosureKey??d.querySelector('summary')?.textContent)||d.dataset.defaultOpen==='true'; });
+    if(activeContextPath)focusContextPath(activeContextPath.split('.'));
+  }
+  function focusContextPath(path){
+    const target=[...root.querySelectorAll('dialog[open] [data-context-path]')].find(n=>n.dataset.contextPath===path.join('.'));
+    if(!target)return;
+    for(let node=target.parentElement;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;
+    target.focus({preventScroll:true});target.scrollIntoView({block:'center'});
   }
   function structuredFields(parent,value,path,label,onAddHeader) {
     const raw = rawNumber(value);
     if (raw !== null) { parent.append(el('p', `${label}: ${raw} (edit this exact JSON number in JSON)`, 'hint')); return; }
     const set=(q,v)=>{let target=q;for(const key of path.slice(0,-1))target=target[key];target[path.at(-1)]=v;};
-    if(value===undefined||value===null){parent.append(el('p',`${label}: ${value===null?'null (explicit absence)':'not supplied'}`,'hint'));if(value===null&&path.at(-1)==='data')button('Supply extension bytes',()=>commit(q=>set(q,'0x')),parent);return;}
+    if(value===undefined||value===null){parent.append(el('p',`${label}: ${value===null?'null (explicit absence)':'not supplied'}`,'hint'));if(value===null&&path.at(-1)==='data'){const supply=button('Supply extension bytes',()=>{commit(q=>set(q,'0x'));focusContextPath(path);},parent);supply.dataset.contextPath=path.join('.');}return;}
     if(typeof value==='object'){
       const entries=Object.entries(value);
       if(!entries.length)parent.append(el('p',Array.isArray(value)?'No entries':'No fields','hint'));
@@ -252,31 +260,35 @@ export function createWorkbench(root, { read, write, edited, capture, restore, b
         const name=Array.isArray(value)?`${label} ${Number(key)+1}`:key.replaceAll('_',' ');
         const managed=Array.isArray(value)&&path.length===2&&path[0]==='context'&&['headers','extensions'].includes(path[1]);
         const entry=managed?el('div',undefined,'context-list-entry'):parent;
-        if(managed)parent.append(entry);
+        if(managed){entry.dataset.contextEntry=[...path,key].join('.');parent.append(entry);}
         if(v!==null&&typeof v==='object'){
-          const details=el('details');details.append(el('summary',name));entry.append(details);structuredFields(details,v,[...path,key],name,onAddHeader);
+          const details=el('details');details.dataset.disclosureKey=[...path,key].join('.');const summary=el('summary',name);details.append(summary);
+          if(managed){let description='';if(path[1]==='headers'){try{description=`Block ${rpcToDecimal(v.number)} · ${headerHash(v).slice(0,14)}…`;}catch{description='Invalid header · inspect fields';}}else description=`${typeof v.block_hash==='string'?v.block_hash.slice(0,14)+'…':'Invalid hash'} · ${v.data===null?'No extension':typeof v.data==='string'?'Extension bytes':'Missing data'}`;summary.append(el('span',description,'context-entry-summary'));}
+          entry.append(details);structuredFields(details,v,[...path,key],name,onAddHeader);
         }else structuredFields(entry,v,[...path,key],name,onAddHeader);
-        if(managed)button(`Remove ${name}`,()=>{
+        if(managed){const remove=button('Remove',()=>{
           if(!window.confirm(`Remove ${name} from supplied context? Dependency hashes and other references remain unchanged and may need repair. Cancel changes restores this entry.`))return;
           commit(q=>q.context[path[1]].splice(Number(key),1));
           const section=[...root.querySelectorAll('dialog[open] details')].find(n=>n.querySelector(':scope > summary')?.textContent===label);
           const rows=section?.querySelectorAll(':scope > .context-list-entry');
           (rows?.[Math.min(Number(key),rows.length-1)]?.querySelector('summary,button')??section?.querySelector(':scope > button'))?.focus();
-        },entry);
+        },entry);remove.setAttribute('aria-label',`Remove ${name}`);}
       });
       if(Array.isArray(value)&&path.join('.')==='context.headers')button('Add header from tip template',()=>onAddHeader(),parent);
-      if(Array.isArray(value)&&path.join('.')==='context.extensions')button('Add extension entry',()=>commit(q=>{q.context.extensions.push({block_hash:`0x${'0'.repeat(64)}`,data:null});}),parent);
+      if(Array.isArray(value)&&path.join('.')==='context.extensions')button('Add extension entry',()=>{const index=read().context.extensions.length;commit(q=>{q.context.extensions.push({block_hash:`0x${'0'.repeat(64)}`,data:null});});focusContextPath(['context','extensions',String(index),'block_hash']);},parent);
       return;
     }
     const key=path.at(-1);
     const decimalKeys=new Set(['max_block_bytes','max_block_cycles','median_time_block_count','starting_block_limiting_dao_withdrawing_lock','closest','farthest','tx_version','version','number','timestamp','nonce','compact_target','transaction_index']);
     const numeric=typeof value==='string'&&(decimalKeys.has(key)||/^rfc[0-9]+_epoch$/.test(key));
     const bits=key==='nonce'?128:['version','tx_version','compact_target','transaction_index'].includes(key)?32:64;
-    if(numeric)field(parent,`${label} (decimal)`,rpcToDecimal(value),set,{parse:v=>decimalToRpc(v,bits)});
-    else if(typeof value==='boolean')field(parent,label,String(value),set,{options:[['true','true'],['false','false']],parse:v=>v==='true'});
-    else if(typeof value==='number')field(parent,label,String(value),set,{parse:v=>{const n=Number(v);if(v.trim()===''||!Number.isFinite(n)||!Number.isSafeInteger(n))throw new Error('Use a safe whole JSON number; large quantities must be RPC hex strings.');return n;}});
-    else field(parent,label,value,set,{area:typeof value==='string'&&value.length>130});
-    if(path[1]==='extensions'&&key==='data')button('Set no extension (null)',()=>commit(q=>set(q,null)),parent);
+    let input;
+    if(numeric)input=field(parent,`${label} (decimal)`,rpcToDecimal(value),set,{parse:v=>decimalToRpc(v,bits)});
+    else if(typeof value==='boolean')input=field(parent,label,String(value),set,{options:[['true','true'],['false','false']],parse:v=>v==='true'});
+    else if(typeof value==='number')input=field(parent,label,String(value),set,{parse:v=>{const n=Number(v);if(v.trim()===''||!Number.isFinite(n)||!Number.isSafeInteger(n))throw new Error('Use a safe whole JSON number; large quantities must be RPC hex strings.');return n;}});
+    else input=field(parent,label,value,set,{area:typeof value==='string'&&value.length>130});
+    input.dataset.contextPath=path.join('.');
+    if(path[1]==='extensions'&&key==='data')button('Set no extension (null)',()=>{commit(q=>set(q,null));focusContextPath(path);},parent);
   }
   function overview(r, report) {
     const source = [...root.children];
@@ -355,7 +367,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore, b
       const trigger=document.activeElement;const previousScroll=dialog.scrollTop;const oldLabel=dialog.getAttribute('aria-labelledby');const hidden=[...dialog.children].map(node=>[node,node.hidden]);hidden.forEach(([node])=>{node.hidden=true;});
       const form=el('section',undefined,'header-draft');dialog.append(form);const bar=el('div',undefined,'inspector-heading header-draft-heading');const title=el('h2',replaceIndex===null?'Create a header':`Edit a copy · header dep index ${replaceIndex}`);title.id='header-draft-title';title.tabIndex=-1;bar.append(title);const apply=el('button','Save header','secondary');apply.type='button';bar.append(apply);const cancel=el('button','Back','secondary');cancel.type='button';bar.append(cancel);form.append(bar);dialog.setAttribute('aria-labelledby',title.id);
       const back=()=>{form.remove();hidden.forEach(([node,wasHidden])=>{node.hidden=wasHidden;});dialog.setAttribute('aria-labelledby',oldLabel);dialog.scrollTop=previousScroll;trigger?.focus({preventScroll:true});};cancel.onclick=back;form.back=back;
-      form.append(el('p',replaceIndex===null?(addDependency?'Start with a copy of the tip header. Saving adds a dependency unless already linked.':'Start with a copy of the tip header. Saving supplies context only; it does not add a dependency.'):'Saving reuses matching context or creates a separate header and replaces only this dependency. Other references remain unchanged.','hint'),el('p','Saving also keeps changes made earlier in this editor.','hint'));
+      form.append(el('p',replaceIndex===null?(addDependency?'Start with a copy of the tip header. Saving adds a dependency unless already linked.':'Start with a copy of the tip header. Saving supplies context only; it does not add a dependency.'):'Saving reuses matching context or creates a separate header and replaces only this dependency. Other references remain unchanged.','hint'),el('p',addDependency?'Saving also keeps changes made earlier in this editor.':'Save header returns to Context. Cancel changes in Context restores all edits in this session.','hint'));
       form.append(el('p','RPC hex is a 0x-prefixed hexadecimal integer; for example, 0x2 means 2.','hint'));
       const names=[['version','Version'],['compact_target','Compact target'],['timestamp','Timestamp'],['number','Block number'],['epoch','Packed epoch'],['parent_hash','Parent hash'],['transactions_root','Transactions root'],['proposals_hash','Proposals hash'],['extra_hash','Extra hash'],['dao','DAO'],['nonce','Nonce']];
       const advanced=el('details',undefined,'header-advanced');advanced.append(el('summary','More header fields'));const controls=new Map();const fieldErrors=new Map();const common=['number','timestamp','parent_hash','epoch'];const ordered=[...names].sort((a,b)=>{const ai=common.indexOf(a[0]),bi=common.indexOf(b[0]);return (ai<0?100:ai)-(bi<0?100:bi);});for(const [key,label] of ordered){const wrap=el('label',`${label} (RPC hex)`,'wb-field');const input=el('input');input.value=typeof template?.[key]==='string'?template[key]:'';input.setAttribute('aria-label',`Header ${label} (RPC hex)`);input.spellcheck=false;const message=el('span','','wb-error field-error');message.id=`header-error-${key}`;message.setAttribute('role','alert');input.setAttribute('aria-describedby',message.id);wrap.append(input,message);if(key==='number'){const decimal=el('span','','hint');decimal.dataset.headerNumber='';wrap.append(decimal);}if(key==='epoch')wrap.append(el('span','Packed epoch combines an epoch number, position and length.','hint'));(common.includes(key)?form:advanced).append(wrap);controls.set(key,input);fieldErrors.set(key,message);}form.append(advanced);
@@ -374,7 +386,7 @@ export function createWorkbench(root, { read, write, edited, capture, restore, b
       }
       for(const [key,input] of controls)input.oninput=()=>{pending=true;fieldErrors.get(key).textContent='';input.removeAttribute('aria-invalid');problem.textContent='';updatePreview();};extension.onchange=()=>{pending=true;extensionWrap.hidden=extension.value!=='bytes';extensionError.textContent='';extensionData.removeAttribute('aria-invalid');updatePreview();};extensionData.oninput=()=>{pending=true;extensionError.textContent='';extensionData.removeAttribute('aria-invalid');updatePreview();};updatePreview();
       form.append(el('p',Object.hasOwn(template??{},'hash')?'The copy’s supplied hash will be updated to the calculated value. Other fields are retained.':'Other fields are retained.','hint'));
-      apply.onclick=()=>{const ignored=new Set([...controls.values(),extension,extensionData,hashValue]);const bad=[...root.querySelectorAll('input,textarea,select')].find(n=>!ignored.has(n)&&!n.checkValidity());if(bad){bad.reportValidity();return;}try{const current=read();let base=current;for(const part of path)base=base?.[part];const header=draftValues(base);headerHash(header);if(extension.value==='bytes'&&!/^0x(?:[0-9a-f]{2})*$/i.test(extensionData.value)){extensionError.textContent='Enter an even number of hex digits after 0x.';extensionData.setAttribute('aria-invalid','true');extensionData.focus();extensionData.scrollIntoView({block:'center'});return;}const next=addHeaderFromFields(current,header,{replaceIndex,extension:extension.value,extensionData:extensionData.value,addDependency});write(next);form.dataset.pending='false';form.remove();finish();}catch(e){const found=names.find(([key])=>e.message.startsWith(`${key} `));if(found){const [key,label]=found;const input=controls.get(key);fieldErrors.get(key).textContent=`${label}${e.message.slice(key.length)}`;input.setAttribute('aria-invalid','true');problem.textContent='';if(advanced.contains(input))advanced.open=true;input.focus();input.scrollIntoView({block:'center'});}else{problem.textContent=e.message;problem.focus();problem.scrollIntoView({block:'center'});}}};
+      apply.onclick=()=>{const ignored=new Set([...controls.values(),extension,extensionData,hashValue]);const bad=[...root.querySelectorAll('input,textarea,select')].find(n=>!ignored.has(n)&&!n.checkValidity());if(bad){bad.reportValidity();return;}try{const current=read();let base=current;for(const part of path)base=base?.[part];const header=draftValues(base);headerHash(header);if(extension.value==='bytes'&&!/^0x(?:[0-9a-f]{2})*$/i.test(extensionData.value)){extensionError.textContent='Enter an even number of hex digits after 0x.';extensionData.setAttribute('aria-invalid','true');extensionData.focus();extensionData.scrollIntoView({block:'center'});return;}const next=addHeaderFromFields(current,header,{replaceIndex,extension:extension.value,extensionData:extensionData.value,addDependency});write(next);form.dataset.pending='false';form.remove();if(addDependency)finish();else{selection='context';refresh();const current=root.querySelector('dialog[open]');const section=[...current.querySelectorAll('details')].find(d=>d.querySelector(':scope > summary')?.textContent==='Supplied headers');section.open=true;const notice=el('p','Header saved to this Context session. Add another header or save Context to finish.','hint');notice.setAttribute('role','status');section.append(notice);const add=section.querySelector(':scope > button');current.scrollTop=previousScroll;add?.focus({preventScroll:true});add?.scrollIntoView({block:'nearest'});}}catch(e){const found=names.find(([key])=>e.message.startsWith(`${key} `));if(found){const [key,label]=found;const input=controls.get(key);fieldErrors.get(key).textContent=`${label}${e.message.slice(key.length)}`;input.setAttribute('aria-invalid','true');problem.textContent='';if(advanced.contains(input))advanced.open=true;input.focus();input.scrollIntoView({block:'center'});}else{problem.textContent=e.message;problem.focus();problem.scrollIntoView({block:'center'});}}};
       dialog.scrollTop=0;title.focus({preventScroll:true});
     }
     if(orderNotice?.kind==='header_deps'){const notice=el('p',orderNotice.text,'hint');notice.setAttribute('role','status');headerManager.append(notice);}
