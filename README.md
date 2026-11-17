@@ -54,20 +54,22 @@ Rust 1.95.0 is pinned in `rust-toolchain.toml`. `clang` is needed for upstream s
 
 The repository and npm package/import name are `ckb-vm-js`.
 
-Build before installing from a checkout or making an npm tarball. No npm registry publication is claimed. `pkg/` contains the generated JS loader, WASM and declarations and is included in the package tarball.
+`ckb-vm-js@0.2.0` is published on npm. Install the released package with `npm install --save-exact ckb-vm-js@0.2.0`; no Rust build is needed for registry consumers. Build before installing from a source checkout or making a new npm tarball. `pkg/` contains the generated JS loader, WASM and declarations and is included in the package tarball.
 
 ## Publishing
 
-To clone, build, test and publish the first package locally, follow the [local first-publish guide](docs/local-first-publish.md), including platform-specific native/WASM tools and the exact-tarball consumer test.
+The [0.2.0 release](https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/releases/tag/v0.2.0) was published through GitHub Actions Trusted Publishing. For future releases, follow the release process below. The [local first-publish guide](docs/local-first-publish.md) remains a bootstrap reference, not a reason to republish an existing version.
 
 [发布工作流与 Trusted Publisher 配置指南](docs/publishing.md) explains the one-time npm bootstrap, exact trust fields, protected environment and release process. Manual runs only build/test/package; publishing a GitHub Release is the only live npm trigger. Adding this workflow does not configure accounts or publish a package.
 
 ## Use
 
 ```js
-import { createVerifier } from './js/index.js';
+import { readFile } from 'node:fs/promises';
+import { createVerifier } from 'ckb-vm-js';
 
-const verifier = await createVerifier(); // loads the local pkg WASM asset once
+const wasm = await readFile(new URL(import.meta.resolve('ckb-vm-js/wasm')));
+const verifier = await createVerifier({ wasm }); // explicit offline Node initialization
 const result = await verifier.verify(request);
 if (!result.ok) console.error(result.error.code, result.error.message);
 else console.log(result.cycles, result.fee, result.groups);
@@ -123,10 +125,6 @@ The snippet is a shape illustration, not a usable network configuration. Cells m
 
 Timestamp-based `since` may require the caller-configured median-time ancestor window. Supply the linked header chain, stopping at genesis. Header JSON is the RPC Header body; the block hash is recomputed, not trusted from a separate asserted hash.
 
-### Migration from v0.1
-
-The old `context.network` is removed. Supply `context.consensus` explicitly; do not assume a preset is selected implicitly. The old misleading `tip_header` was a candidate header. To retain exact-block semantics, move it to `context.verification.candidate_header`, set `phase: 'committed'`, provide the target `transaction_index`, and put its actual parent in `context.tip_header`. Do not repeat that parent in `headers`. Omitting `verification` intentionally selects **submitted**, not the old committed behavior. JS method names are unchanged.
-
 Success returns `{ ok: true, scope: 'transaction' | 'script_group', cycles, fee?, groups, chain_state_verified: false }`. Failure returns `{ ok: false, error: { code, message } }`. Group order is not part of the API. Error messages include upstream details and may change with upstream versions.
 
 ## Upstream and reproducibility
@@ -138,4 +136,4 @@ Success returns `{ ok: true, scope: 'transaction' | 'script_group', cycles, fee?
 
 See [verification notes](docs/verification.md) for actual checks run and remaining test gaps. This is an independent integration, not an official Nervos release. Upstream submodules retain their own licenses.
 
-Dependency attribution and unresolved upstream notice gaps are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Licensing review, like consensus coverage, is not claimed complete for this experimental package.
+Dependency attribution and explicit source limitations are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Licensing review, like consensus coverage, is not claimed complete for this experimental package.

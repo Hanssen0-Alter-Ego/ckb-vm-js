@@ -108,7 +108,3 @@ Full mode runs upstream resolution, noncontextual verification, contextual matur
 Success is conditional on caller-supplied facts **and parameters**. It does not authenticate cell contents against outpoint transaction hashes, prove transaction inclusion, verify PoW, authenticate extensions against commitments, establish canonical ancestry/fork choice, check liveness or double spends elsewhere, prove proposal inclusion, or verify block aggregate limits/rewards. Known same-block index checks do not validate the rest of the candidate block. The caller remains responsible for truth, completeness and consistency of external state beyond the local checks.
 
 Use a Web Worker to avoid blocking the browser UI. Enforce application-level JSON/snapshot-size limits; VM cycle limits do not bound parsing or snapshot memory.
-
-## Migrating from v0.1
-
-Remove `context.network` and supply explicit consensus parameters. The old `tip_header` meant a candidate block: move it to `verification.candidate_header`, set `phase: 'committed'`, add the target `transaction_index`, and put its actual parent into the new `tip_header`. Remove that parent from the separate headers array to avoid duplication. Omitting `verification` now means submitted mode, intentionally not an automatic compatibility alias. JS methods and result shapes remain unchanged.

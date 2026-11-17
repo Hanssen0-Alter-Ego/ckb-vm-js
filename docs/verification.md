@@ -67,26 +67,8 @@ Four custom-chain fixtures isolate the DAO size gate: submitted mode before bloc
 - The API trusts the developer's external context. It cannot authenticate headers, cell data, extensions, spent status, ancestry or proposal inclusion.
 - Browser execution should use the Worker interface. Workers may be terminated by the caller; the direct synchronous WASM call has no cooperative cancellation API.
 
-## Historical v0.1 local execution record (2026-11-12)
-
-- Rust 1.95.0 native check, formatting, tests and Clippy were run.
-- 33 transaction fixtures run through the real WASM engine, plus an initialization/invalid-request check.
-- Live differential comparison against native, including an unmodified-upstream native binary.
-- 11 JavaScript boundary/Worker-protocol tests and TypeScript declarations checked.
-- WASM release generated with wasm-bindgen 0.2.105 and WASI SDK 34 clang (only as C compiler, still targeting bare wasm32-unknown-unknown).
-- The local environment could not launch Chromium because a required local socket operation was unavailable. Managed-browser access also could not reach the isolated local server. No local real-browser pass is claimed; the committed CI workflow runs the real offline Worker test in Chromium. Check the exact commit's workflow result.
-
-## Historical v0.1 CI browser evidence
-
-The complete workflow passed at engine commit `184af5d80ce8a2798d432c821b475ef03b3f6bc6`:
-https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/actions/runs/43139332773
-
-This includes Chromium running a real dedicated Worker with `crossOriginIsolated === false` and no SharedArrayBuffer. After module initialization from localhost, browser networking is disabled before full transaction, selected group and failure fixtures are verified. It also includes native/WASM parity against the separately built **unmodified upstream** native engine. This evidence belongs to that exact earlier commit. In particular, it does not establish that the later foundation-interface refactor passed; inspect the current commit’s checks separately.
+Earlier pre-release execution records are retained in the [historical appendix](verification-history.md); they do not validate current revisions.
 
 ## Distribution notices
 
-`THIRD_PARTY_NOTICES.md` records the dependency notices and their provenance. Two
-upstream MIT notice texts were not found for blake2b-ref 0.3.1 and
-ckb-system-scripts 0.5.4; those gaps and current-upstream fallbacks are explicit.
-This attribution inventory is not a claim that licensing review is complete.
-Resolve the listed gaps before production redistribution.
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) records dependency notices and provenance. For blake2b-ref 0.3.1 and ckb-system-scripts 0.5.4, the exact published manifests explicitly declare MIT but do not bundle separate license files; SPDX text and the limits of that evidence are documented in [the license verification record](../scripts/licenses/VERIFICATION.md). This inventory is not a claim of complete legal review.
