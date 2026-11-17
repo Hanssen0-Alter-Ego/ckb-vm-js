@@ -40,3 +40,10 @@ test('real dedicated Worker verifies offline without isolation or SharedArrayBuf
     await page.evaluate(() => window.verifier.dispose());
   }
 });
+
+
+test('real Worker accepts matching RPC hashes and rejects mismatches', async ({page}) => {
+ await page.goto('/');const request=structuredClone(cases.find(f=>f.name==='selected-lock').request);request.transaction.hash='0x0ddc389e29dacea4405331a65ea4c9ee2d731984e598baff039bdf3f1da3d576';request.context.tip_header.hash='0x431643f20c2ddc95980bb2797c2a020d78cc05c849b70ab1a041c7e2768ec106';request.context.verification.candidate_header.hash='0x411e38f46d127390be4606bf4fec8c2db53321a8b3bdafd7b3428ebdb2bd5e64';request.context.headers=[{...cases.find(f=>f.name==='selected-lock').request.context.tip_header,nonce:'0x1',hash:'0x771ff3bbda2687be90ceb8af09de258fa83d294e0e3ec7e430cdbdc0ae0ef087'}];
+ const results=await page.evaluate(async request=>{const {createWorkerVerifier}=await import('/js/index.js');const wasm=await(await fetch('/pkg/ckb_wasm_verifier_bg.wasm')).arrayBuffer();const v=await createWorkerVerifier({wasm});try{const matching=await v.verifyScriptGroup(request,request.script_group);const invalid=structuredClone(request);invalid.context.tip_header.hash=`0x${'00'.repeat(32)}`;const rejected=await v.verify(invalid);return {matching,rejected};}finally{v.dispose();}},request);
+ expect(results.matching.ok).toBe(true);expect(results.matching.scope).toBe('script_group');expect(results.rejected.error.code).toBe('InvalidRequest');expect(results.rejected.error.message).toContain('header hash does not match');
+});

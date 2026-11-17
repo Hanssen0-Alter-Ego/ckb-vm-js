@@ -1,17 +1,17 @@
 # Third-party notices
 
-This inventory covers 157 third-party Cargo package/version entries from the locked build, including build-only and target-specific dependencies. Their inclusion does not imply every package is linked into the distributed WebAssembly. npm development tools are not bundled in the published package.
+This inventory covers 157 third-party Cargo package/version entries from the locked wasm32-unknown-unknown dependency graph, including build-only dependencies. Their inclusion does not imply every package is linked into the distributed WebAssembly. npm development tools are not bundled in the published package.
 
-License texts and notices below are reproduced from the published crate contents, pinned vendored source trees, or the upstream URLs shown. Identical texts are printed once. MIT is selected where an MIT alternative is available; additional Unicode and bundled-component notices remain included. BLAKE2 uses its offered CC0 option. Upstream URLs using a branch rather than a commit/tag are explicitly current-upstream fallbacks, not verified release snapshots.
+License texts and notices below are reproduced from the published crate contents, pinned vendored source trees, or the upstream URLs shown. Explicit SPDX declaration fallbacks are individually documented below. Identical texts are printed once. MIT is selected where an MIT alternative is available; additional Unicode and bundled-component notices remain included. BLAKE2 uses its offered CC0 option. Upstream URLs using a branch rather than a commit/tag are explicitly current-upstream fallbacks, not verified release snapshots.
 
 The project license does not replace these third-party terms. Preserve this file when redistributing the package.
 
-## Unresolved release-notice gaps
+## Explicit SPDX declarations without bundled license files
 
-The following manifests declare licenses, but matching complete upstream license notices were not available in the collected sources. These entries must be resolved before treating this inventory as complete.
+The following exact published manifests declare MIT. Cargo defines this field as the package license; the absence of a separate LICENSE file is not an absent license declaration. The standard MIT reference text below is reproduced from SPDX. Its copyright placeholders remain verbatim template text and do not identify a package copyright holder. No package-level copyright statement was found in these upstream release sources; author metadata is not substituted for one. All located original component notices remain included. See scripts/licenses/VERIFICATION.md in the source repository for the evidence and limits.
 
-- blake2b-ref 0.3.1 (MIT); upstream: https://github.com/jjyr/blake2b-ref.rs
-- ckb-system-scripts 0.5.4 (MIT); upstream: https://github.com/nervosnetwork/ckb-system-scripts
+- blake2b-ref 0.3.1: https://github.com/jjyr/blake2b-ref.rs/blob/f1efc4872d67a8d4c4a57d2d0e16f8b5e53724b9/Cargo.toml; published Cargo.toml.orig SHA256: 1c2b756c446bbae9affa92ec49d2bcb361a3a5248fd568c6533ea2c73469217a
+- ckb-system-scripts 0.5.4: https://github.com/nervosnetwork/ckb-system-scripts/blob/e08e6016f16072fc2f44cf889ae063fa5b7e10c7/Cargo.toml; published Cargo.toml.orig SHA256: 820eed2f88d5fdeaadd98a2c6ff8c16e04215926d25471f5226f3b92511b91f5
 
 ## Notice 1
 
@@ -341,6 +341,33 @@ DEALINGS IN THE SOFTWARE.
 
 ## Notice 7
 
+- blake2b-ref 0.3.1 (explicit manifest MIT declaration; SPDX reference text, not a recovered upstream LICENSE file); source: https://raw.githubusercontent.com/spdx/license-list-data/31846481de7ea17d92f2f46fad76abe58b2e9bb0/json/details/MIT.json
+- ckb-system-scripts 0.5.4 (explicit manifest MIT declaration; SPDX reference text, not a recovered upstream LICENSE file); source: https://raw.githubusercontent.com/spdx/license-list-data/31846481de7ea17d92f2f46fad76abe58b2e9bb0/json/details/MIT.json
+
+```text
+MIT License
+
+Copyright (c) <year> <copyright holders>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+associated documentation files (the "Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the
+following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial
+portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
+EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+## Notice 8
+
+- blake2b-ref wrapper: license of the upstream API source credited in its README (blake2b-rs 0.1.5); retained attribution, not an inferred copyright assignment for blake2b-ref modifications; source: https://raw.githubusercontent.com/nervosnetwork/blake2b-rs/2e7c9d5e76156cbfdb4e7d90ff7534c27623d5e0/LICENSE
 - blake2b-rs 0.2.0 (MIT); source: https://crates.io/crates/blake2b-rs/0.2.0 — LICENSE
 - faster-hex 0.6.1 (MIT); source: https://crates.io/crates/faster-hex/0.6.1 — LICENSE
 
@@ -368,20 +395,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 8
-
-- blake2b-rs 0.2.0 bundled component: THIRD-PARTY/LICENSE-emilbayes; source: https://crates.io/crates/blake2b-rs/0.2.0 — THIRD-PARTY/LICENSE-emilbayes
-
-```text
-Copyright (c) 2017, Emil Bay github@tixz.dk
-
-Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-```
-
 ## Notice 9
 
+- BLAKE2 bundled in blake2b-ref 0.3.1 (CC0-1.0 selected); source: https://raw.githubusercontent.com/jjyr/blake2b-ref.rs/f1efc4872d67a8d4c4a57d2d0e16f8b5e53724b9/src/blake2b_ref.rs
 - BLAKE2 bundled in blake2b-rs 0.2.0 (CC0-1.0 selected); source: https://crates.io/crates/blake2b-rs/0.2.0 — BLAKE2/ref/blake2b-ref.c
 - ckb-system-scripts 0.5.4 bundled component: ckb-system-blake2b-header.txt; source: https://raw.githubusercontent.com/nervosnetwork/ckb-system-scripts/v0.5.4/c/blake2b.h
 
@@ -403,6 +419,18 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 ```
 
 ## Notice 10
+
+- blake2b-rs 0.2.0 bundled component: THIRD-PARTY/LICENSE-emilbayes; source: https://crates.io/crates/blake2b-rs/0.2.0 — THIRD-PARTY/LICENSE-emilbayes
+
+```text
+Copyright (c) 2017, Emil Bay github@tixz.dk
+
+Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+```
+
+## Notice 11
 
 - bumpalo 3.20.3 (MIT OR Apache-2.0); source: https://crates.io/crates/bumpalo/3.20.3 — LICENSE-MIT
 
@@ -434,7 +462,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 11
+## Notice 12
 
 - byteorder 1.5.0 (Unlicense OR MIT); source: https://crates.io/crates/byteorder/1.5.0 — LICENSE-MIT
 - memchr 2.8.3 (Unlicense OR MIT); source: https://crates.io/crates/memchr/2.8.3 — LICENSE-MIT
@@ -464,7 +492,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-## Notice 12
+## Notice 13
 
 - byteorder 1.5.0 (Unlicense OR MIT); source: https://crates.io/crates/byteorder/1.5.0 — COPYING
 - memchr 2.8.3 (Unlicense OR MIT); source: https://crates.io/crates/memchr/2.8.3 — COPYING
@@ -477,7 +505,7 @@ This project is dual-licensed under the Unlicense and MIT licenses.
 You may use this code under the terms of either license.
 ```
 
-## Notice 13
+## Notice 14
 
 - bytes 1.12.1 (MIT); source: https://crates.io/crates/bytes/1.12.1 — LICENSE
 
@@ -509,7 +537,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 14
+## Notice 15
 
 - cc 1.11.1 (MIT OR Apache-2.0); source: https://crates.io/crates/cc/1.11.1 — LICENSE-MIT
 - cfg-if 1.0.5 (MIT OR Apache-2.0); source: https://crates.io/crates/cfg-if/1.0.5 — LICENSE-MIT
@@ -549,7 +577,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 15
+## Notice 16
 
 - ckb-chain-spec 1.1.3 (MIT); source: vendor/ckb/COPYING
 - ckb-constant 1.1.4 (MIT); source: vendor/ckb/COPYING
@@ -605,7 +633,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 16
+## Notice 17
 
 - ckb-merkle-mountain-range 0.5.2 (MIT); source: https://raw.githubusercontent.com/nervosnetwork/merkle-mountain-range/master/LICENSE
 
@@ -633,7 +661,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 17
+## Notice 18
 
 - convert_case 0.4.0 (MIT); source: https://raw.githubusercontent.com/rutrum/convert-case/master/LICENSE
 
@@ -661,7 +689,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 18
+## Notice 19
 
 - crc32fast 1.5.5 (MIT OR Apache-2.0); source: https://crates.io/crates/crc32fast/1.5.5 — LICENSE-MIT
 
@@ -689,7 +717,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 19
+## Notice 20
 
 - cty 0.2.2 (MIT OR Apache-2.0); source: https://crates.io/crates/cty/0.2.2 — LICENSE-MIT
 
@@ -721,7 +749,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 20
+## Notice 21
 
 - defmt 0.3.101 (MIT OR Apache-2.0); source: https://raw.githubusercontent.com/knurling-rs/defmt/719491ca3529abd07205165b9b10e4d988552bc2/LICENSE-MIT
 - defmt 1.2.0 (MIT OR Apache-2.0); source: https://crates.io/crates/defmt/1.2.0 — LICENSE-MIT
@@ -756,7 +784,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 21
+## Notice 22
 
 - derive_more 0.99.20 (MIT); source: https://crates.io/crates/derive_more/0.99.20 — LICENSE
 - derive_more 1.0.0 (MIT); source: https://crates.io/crates/derive_more/1.0.0 — LICENSE
@@ -786,7 +814,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 22
+## Notice 23
 
 - faster-hex 0.6.1 (MIT); source: https://crates.io/crates/faster-hex/0.6.1 — LICENSE-THIRD-PARTY
 
@@ -818,7 +846,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 23
+## Notice 24
 
 - faster-hex 1.0.0 (MIT); source: https://crates.io/crates/faster-hex/1.0.0 — LICENSE
 
@@ -868,7 +896,7 @@ Their copyright and permission notices are included with this distribution:
   See LICENSE-THIRD-PARTY/vsimd.
 ```
 
-## Notice 24
+## Notice 25
 
 - flate2 1.1.11 (MIT OR Apache-2.0); source: https://crates.io/crates/flate2/1.1.11 — LICENSE-MIT
 
@@ -900,7 +928,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 25
+## Notice 26
 
 - getrandom 0.1.16 (MIT OR Apache-2.0); source: https://crates.io/crates/getrandom/0.1.16 — LICENSE-MIT
 - rand 0.7.3 (MIT OR Apache-2.0); source: https://crates.io/crates/rand/0.7.3 — LICENSE-MIT
@@ -939,7 +967,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 26
+## Notice 27
 
 - getrandom 0.2.17 (MIT OR Apache-2.0); source: https://crates.io/crates/getrandom/0.2.17 — LICENSE-MIT
 
@@ -972,7 +1000,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 27
+## Notice 28
 
 - goblin 0.2.3 (MIT); source: https://crates.io/crates/goblin/0.2.3 — LICENSE
 - goblin 0.4.0 (MIT); source: https://crates.io/crates/goblin/0.4.0 — LICENSE
@@ -1001,7 +1029,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 28
+## Notice 29
 
 - golomb-coded-set 0.2.1 (MIT); source: https://crates.io/crates/golomb-coded-set/0.2.1 — LICENSE
 
@@ -1029,7 +1057,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 29
+## Notice 30
 
 - heapsize 0.4.2 (MIT/Apache-2.0); source: https://crates.io/crates/heapsize/0.4.2 — LICENSE-MIT
 
@@ -1055,7 +1083,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 30
+## Notice 31
 
 - hex 0.4.3 (MIT OR Apache-2.0); source: https://crates.io/crates/hex/0.4.3 — LICENSE-MIT
 
@@ -1082,7 +1110,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 31
+## Notice 32
 
 - includedir 0.6.0 (BSD-3-Clause); source: https://raw.githubusercontent.com/tilpner/includedir/6a81c906e233649af1acec9835fe0a034b9274e2/LICENSE
 - includedir_codegen 0.6.0 (BSD-3-Clause); source: https://raw.githubusercontent.com/tilpner/includedir/6a81c906e233649af1acec9835fe0a034b9274e2/LICENSE
@@ -1117,7 +1145,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-## Notice 32
+## Notice 33
 
 - lru 0.7.8 (MIT); source: https://crates.io/crates/lru/0.7.8 — LICENSE
 
@@ -1145,7 +1173,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 33
+## Notice 34
 
 - merkle-cbt 0.3.2 (MIT); source: https://crates.io/crates/merkle-cbt/0.3.2 — LICENSE
 
@@ -1173,7 +1201,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 34
+## Notice 35
 
 - miniz_oxide 0.9.1 (MIT OR Zlib OR Apache-2.0); source: https://crates.io/crates/miniz_oxide/0.9.1 — LICENSE-MIT.md
 
@@ -1204,7 +1232,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 35
+## Notice 36
 
 - molecule 0.9.2 (MIT); source: https://raw.githubusercontent.com/nervosnetwork/molecule/90a83fc479116063311d3a5b712245b409aab70f/LICENSE
 
@@ -1230,7 +1258,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 36
+## Notice 37
 
 - numext-constructor 0.1.6 (Apache-2.0 OR MIT); source: https://raw.githubusercontent.com/cryptape/rust-numext/93785e771fcc7d352064689556374e6131779ebd/LICENSE-MIT
 - numext-fixed-uint 0.1.6 (Apache-2.0 OR MIT); source: https://raw.githubusercontent.com/cryptape/rust-numext/93785e771fcc7d352064689556374e6131779ebd/LICENSE-MIT
@@ -1259,7 +1287,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 37
+## Notice 38
 
 - phf 0.8.0 (MIT); source: https://raw.githubusercontent.com/sfackler/rust-phf/81c7cc5b48649108428671d3b8ad151f6fbdb359/LICENSE
 - phf_codegen 0.8.0 (MIT); source: https://raw.githubusercontent.com/sfackler/rust-phf/81c7cc5b48649108428671d3b8ad151f6fbdb359/LICENSE
@@ -1289,7 +1317,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 38
+## Notice 39
 
 - phf 0.12.1 (MIT); source: https://crates.io/crates/phf/0.12.1 — LICENSE
 - phf_generator 0.12.1 (MIT); source: https://crates.io/crates/phf_generator/0.12.1 — LICENSE
@@ -1319,7 +1347,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 39
+## Notice 40
 
 - plain 0.2.3 (MIT/Apache-2.0); source: https://crates.io/crates/plain/0.2.3 — LICENSE-MIT
 
@@ -1351,7 +1379,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 40
+## Notice 41
 
 - ppv-lite86 0.2.21 (MIT OR Apache-2.0); source: https://crates.io/crates/ppv-lite86/0.2.21 — LICENSE-MIT
 
@@ -1383,7 +1411,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 41
+## Notice 42
 
 - rand_pcg 0.2.1 (MIT OR Apache-2.0); source: https://crates.io/crates/rand_pcg/0.2.1 — LICENSE-MIT
 
@@ -1416,7 +1444,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 42
+## Notice 43
 
 - rustc_version 0.4.1 (MIT OR Apache-2.0); source: https://crates.io/crates/rustc_version/0.4.1 — LICENSE-MIT
 
@@ -1448,7 +1476,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 43
+## Notice 44
 
 - same-file 1.0.6 (Unlicense/MIT); source: https://crates.io/crates/same-file/1.0.6 — LICENSE-MIT
 
@@ -1476,7 +1504,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-## Notice 44
+## Notice 45
 
 - schemars 1.2.3 (MIT); source: https://crates.io/crates/schemars/1.2.3 — LICENSE
 - schemars_derive 1.2.3 (MIT); source: https://crates.io/crates/schemars_derive/1.2.3 — LICENSE
@@ -1505,7 +1533,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 45
+## Notice 46
 
 - scroll 0.10.2 (MIT); source: https://crates.io/crates/scroll/0.10.2 — LICENSE
 
@@ -1533,7 +1561,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 46
+## Notice 47
 
 - scroll_derive 0.10.5 (MIT); source: https://crates.io/crates/scroll_derive/0.10.5 — LICENSE
 
@@ -1561,7 +1589,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 47
+## Notice 48
 
 - secp256k1-sys 0.10.1 bundled component: depend/secp256k1/COPYING; source: https://crates.io/crates/secp256k1-sys/0.10.1 — depend/secp256k1/COPYING
 - ckb-system-scripts 0.5.4 bundled component: ckb-system-secp256k1.txt; source: https://raw.githubusercontent.com/nervosnetwork/secp256k1/3ffde18a060aaf4df5b81e7d88355f1e99874650/COPYING
@@ -1588,7 +1616,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-## Notice 48
+## Notice 49
 
 - secp256k1-sys 0.10.1 bundled component: depend/secp256k1/examples/EXAMPLES_COPYING; source: https://crates.io/crates/secp256k1-sys/0.10.1 — depend/secp256k1/examples/EXAMPLES_COPYING
 
@@ -1716,7 +1744,7 @@ express Statement of Purpose.
     this CC0 or use of the Work.
 ```
 
-## Notice 49
+## Notice 50
 
 - secp256k1-sys 0.10.1 bundled component: depend/secp256k1/src/wycheproof/WYCHEPROOF_COPYING; source: https://crates.io/crates/secp256k1-sys/0.10.1 — depend/secp256k1/src/wycheproof/WYCHEPROOF_COPYING
 
@@ -1935,7 +1963,7 @@ express Statement of Purpose.
    limitations under the License.
 ```
 
-## Notice 50
+## Notice 51
 
 - shlex 2.0.1 (MIT OR Apache-2.0); source: https://crates.io/crates/shlex/2.0.1 — LICENSE-MIT
 
@@ -1963,7 +1991,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-## Notice 51
+## Notice 52
 
 - simd-adler32 0.3.10 (MIT); source: https://crates.io/crates/simd-adler32/0.3.10 — LICENSE.md
 
@@ -1991,7 +2019,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 52
+## Notice 53
 
 - siphasher 0.3.11 (MIT/Apache-2.0); source: https://crates.io/crates/siphasher/0.3.11 — COPYING
 
@@ -2005,7 +2033,7 @@ http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 option.
 ```
 
-## Notice 53
+## Notice 54
 
 - siphasher 1.0.4 (MIT OR Apache-2.0); source: https://crates.io/crates/siphasher/1.0.4 — LICENSE-MIT
 - MIT license body referenced by siphasher 0.3.11 COPYING; body sourced from siphasher 1.0.4; source: https://crates.io/crates/siphasher/1.0.4 — LICENSE-MIT
@@ -2030,7 +2058,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 54
+## Notice 55
 
 - siphasher 1.0.4 (MIT OR Apache-2.0); source: https://crates.io/crates/siphasher/1.0.4 — COPYING
 
@@ -2044,7 +2072,7 @@ http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 option.
 ```
 
-## Notice 55
+## Notice 56
 
 - strum 0.27.2 (MIT); source: https://crates.io/crates/strum/0.27.2 — LICENSE
 - strum_macros 0.27.2 (MIT); source: https://crates.io/crates/strum_macros/0.27.2 — LICENSE
@@ -2073,7 +2101,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 56
+## Notice 57
 
 - tokio 1.54.1 (MIT); source: https://crates.io/crates/tokio/1.54.1 — LICENSE
 
@@ -2101,7 +2129,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 57
+## Notice 58
 
 - tokio-macros 2.7.2 (MIT); source: https://crates.io/crates/tokio-macros/2.7.2 — LICENSE
 
@@ -2130,7 +2158,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 58
+## Notice 59
 
 - unicode-ident 1.0.27 ((MIT OR Apache-2.0) AND Unicode-3.0); source: https://crates.io/crates/unicode-ident/1.0.27 — LICENSE-UNICODE
 
@@ -2176,7 +2204,7 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 ```
 
-## Notice 59
+## Notice 60
 
 - version_check 0.9.5 (MIT/Apache-2.0); source: https://crates.io/crates/version_check/0.9.5 — LICENSE-MIT
 
@@ -2202,7 +2230,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 60
+## Notice 61
 
 - web-time 1.1.0 (MIT OR Apache-2.0); source: https://crates.io/crates/web-time/1.1.0 — LICENSE-MIT
 
@@ -2230,7 +2258,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Notice 61
+## Notice 62
 
 - zerocopy 0.8.63 (BSD-2-Clause OR Apache-2.0 OR MIT); source: https://crates.io/crates/zerocopy/0.8.63 — LICENSE-MIT
 
@@ -2262,7 +2290,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-## Notice 62
+## Notice 63
 
 - zlib-rs 0.6.8 (Zlib); source: https://crates.io/crates/zlib-rs/0.6.8 — LICENSE
 

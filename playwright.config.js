@@ -12,7 +12,7 @@ export default defineConfig({
       : {},
   },
   webServer: {
-    command: 'node tests/browser/server.js',
+    command: 'node scripts/build-site.mjs && node tests/browser/server.js',
     url: 'http://127.0.0.1:4178',
     reuseExistingServer: false,
   },

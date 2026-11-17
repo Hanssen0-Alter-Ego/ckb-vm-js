@@ -36,7 +36,7 @@
 }
 ```
 
-This is a shape illustration, not runnable JSON or a network preset. Use `ckb-jsonrpc-types` Transaction, Header, OutPoint, CellOutput, and Script shapes. Integer quantities use canonical RPC `0x` strings; byte fields use even-length `0x` strings. Own wrapper objects reject unknown fields. Upstream RPC objects follow upstream serde parsing. Headers are keyed by their recomputed hashes rather than a separately asserted hash.
+This is a shape illustration, not runnable JSON or a network preset. Use `ckb-jsonrpc-types` Transaction, Header, OutPoint, CellOutput, and Script shapes. Integer quantities use canonical RPC `0x` strings; byte fields use even-length `0x` strings. Own wrapper objects reject unknown fields. Upstream RPC objects follow upstream serde parsing. Headers are keyed by their recomputed hashes rather than a separately asserted hash. RPC-view `hash` is optional on transactions and headers; when present it must equal the hash recomputed from the object. A mismatch is rejected, and a match does not establish chain authenticity.
 
 ## Explicit consensus parameters
 

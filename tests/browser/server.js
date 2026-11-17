@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = path.resolve(fileURLToPath(new URL('../../', import.meta.url)));
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json', '.css': 'text/css' };
 http.createServer(async (request, response) => {
   try {
     const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
@@ -12,7 +12,8 @@ http.createServer(async (request, response) => {
       response.end('<!doctype html><title>CKB WASM Worker integration</title>');
       return;
     }
-    const file = path.resolve(root, `.${pathname}`);
+    const relative = pathname.startsWith('/ckb-vm-js/') ? '/site-dist/' + (pathname.slice('/ckb-vm-js/'.length) || 'index.html') : pathname;
+    const file = path.resolve(root, `.${relative}`);
     if (!file.startsWith(root + path.sep) && file !== root) throw new Error('Invalid path');
     const body = await readFile(file);
     // Deliberately no COOP/COEP headers: this test proves the non-isolated path.

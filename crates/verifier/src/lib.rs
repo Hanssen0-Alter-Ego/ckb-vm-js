@@ -23,7 +23,7 @@ use ckb_verification::{
     ContextualTransactionVerifier, DaoScriptSizeVerifier, NonContextualTransactionVerifier, Since,
     SinceMetric,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Error as _};
 use serde_json::{Value, json};
 use std::{
     collections::{HashMap, HashSet},
@@ -33,6 +33,7 @@ use std::{
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct VerifyRequest {
+    #[serde(deserialize_with = "deserialize_transaction")]
     pub transaction: rpc::Transaction,
     pub context: Context,
     pub max_cycles: rpc::Uint64,
@@ -43,10 +44,12 @@ pub struct VerifyRequest {
 pub struct Context {
     pub consensus: ConsensusParameters,
     /// Actual current chain tip. Never an implicitly named candidate.
+    #[serde(deserialize_with = "deserialize_header")]
     pub tip_header: rpc::Header,
     #[serde(default)]
     pub verification: Verification,
     pub cells: Vec<Cell>,
+    #[serde(deserialize_with = "deserialize_headers")]
     pub headers: Vec<rpc::Header>,
     pub extensions: Vec<Extension>,
 }
@@ -84,10 +87,89 @@ pub enum Verification {
     #[default]
     Submitted,
     Committed {
+        #[serde(deserialize_with = "deserialize_candidate_header")]
         candidate_header: Box<rpc::Header>,
         transaction_index: rpc::Uint64,
     },
 }
+// RPC views add a derived hash to the otherwise strict RPC input shapes.
+// Validate it before discarding it; never use an asserted hash as an index.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HeaderWithHash {
+    #[serde(flatten)]
+    header: rpc::Header,
+    #[serde(default, deserialize_with = "deserialize_present_hash")]
+    hash: Option<ckb_types::H256>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TransactionWithHash {
+    #[serde(flatten)]
+    transaction: rpc::Transaction,
+    #[serde(default, deserialize_with = "deserialize_present_hash")]
+    hash: Option<ckb_types::H256>,
+}
+
+fn deserialize_present_hash<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<ckb_types::H256>, D::Error> {
+    ckb_types::H256::deserialize(deserializer).map(Some)
+}
+
+impl HeaderWithHash {
+    fn checked<E: serde::de::Error>(self) -> std::result::Result<rpc::Header, E> {
+        if let Some(hash) = self.hash {
+            let expected: packed::Byte32 = hash.into();
+            let actual = packed::Header::from(self.header.clone()).into_view().hash();
+            if actual != expected {
+                return Err(E::custom("header hash does not match computed header hash"));
+            }
+        }
+        Ok(self.header)
+    }
+}
+
+fn deserialize_header<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<rpc::Header, D::Error> {
+    HeaderWithHash::deserialize(deserializer)?.checked()
+}
+
+fn deserialize_candidate_header<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Box<rpc::Header>, D::Error> {
+    deserialize_header(deserializer).map(Box::new)
+}
+
+fn deserialize_headers<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Vec<rpc::Header>, D::Error> {
+    Vec::<HeaderWithHash>::deserialize(deserializer)?
+        .into_iter()
+        .map(HeaderWithHash::checked)
+        .collect()
+}
+
+fn deserialize_transaction<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<rpc::Transaction, D::Error> {
+    let input = TransactionWithHash::deserialize(deserializer)?;
+    if let Some(hash) = input.hash {
+        let expected: packed::Byte32 = hash.into();
+        let actual = packed::Transaction::from(input.transaction.clone())
+            .into_view()
+            .hash();
+        if actual != expected {
+            return Err(D::Error::custom(
+                "transaction hash does not match computed transaction hash",
+            ));
+        }
+    }
+    Ok(input.transaction)
+}
+
 fn deserialize_nullable_origin<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> std::result::Result<Option<CellOrigin>, D::Error> {
@@ -598,6 +680,85 @@ mod tests {
     #[test]
     fn missing_request_fields_fail_closed() {
         assert!(verify_json("{}").contains("InvalidRequest"));
+    }
+    #[test]
+    fn rpc_view_hashes_are_checked_without_weakening_strict_fields() {
+        let fixture: Value =
+            serde_json::from_str(include_str!("../../../fixtures/selected-lock.json")).unwrap();
+        let request = fixture["request"].clone();
+        let transaction: rpc::Transaction =
+            serde_json::from_value(request["transaction"].clone()).unwrap();
+        let tx_hash = packed::Transaction::from(transaction).into_view().hash();
+        assert_eq!(
+            hash_hex(&tx_hash),
+            "0x0ddc389e29dacea4405331a65ea4c9ee2d731984e598baff039bdf3f1da3d576"
+        );
+        let mut hashed = request.clone();
+        hashed["transaction"]["hash"] = json!(hash_hex(&tx_hash));
+        for path in ["tip_header", "candidate_header"] {
+            let value = if path == "tip_header" {
+                &mut hashed["context"]["tip_header"]
+            } else {
+                &mut hashed["context"]["verification"]["candidate_header"]
+            };
+            let header: rpc::Header = serde_json::from_value(value.clone()).unwrap();
+            value["hash"] = json!(hash_hex(&packed::Header::from(header).into_view().hash()));
+        }
+        let mut extra = request["context"]["tip_header"].clone();
+        extra["nonce"] = json!("0x1");
+        let header: rpc::Header = serde_json::from_value(extra.clone()).unwrap();
+        extra["hash"] = json!(hash_hex(&packed::Header::from(header).into_view().hash()));
+        hashed["context"]["headers"] = json!([extra]);
+        let result = |value: &Value| {
+            serde_json::from_str::<Value>(&verify_json(&value.to_string())).unwrap()
+        };
+        assert_eq!(result(&request)["ok"], true);
+        assert_eq!(result(&hashed)["ok"], true);
+        for path in ["transaction", "tip_header", "candidate_header", "headers"] {
+            let mut changed = hashed.clone();
+            let value = match path {
+                "transaction" => &mut changed["transaction"],
+                "tip_header" => &mut changed["context"]["tip_header"],
+                "candidate_header" => &mut changed["context"]["verification"]["candidate_header"],
+                _ => &mut changed["context"]["headers"][0],
+            };
+            value["hash"] = json!(format!("0x{}", "00".repeat(32)));
+            let response = result(&changed);
+            assert_eq!(response["error"]["code"], "InvalidRequest", "{path}");
+            assert!(
+                response["error"]["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("hash does not match"),
+                "{path}"
+            );
+        }
+        for field in ["transaction", "tip_header"] {
+            let mut changed = request.clone();
+            let value = if field == "transaction" {
+                &mut changed["transaction"]
+            } else {
+                &mut changed["context"]["tip_header"]
+            };
+            value["unexpected"] = json!("not allowed");
+            assert_eq!(
+                result(&changed)["error"]["code"],
+                "InvalidRequest",
+                "{field}"
+            );
+            let mut changed = request.clone();
+            let value = if field == "transaction" {
+                &mut changed["transaction"]
+            } else {
+                &mut changed["context"]["tip_header"]
+            };
+            value["hash"] = Value::Null;
+            assert_eq!(
+                result(&changed)["error"]["code"],
+                "InvalidRequest",
+                "{field}"
+            );
+        }
     }
     #[test]
     fn missing_median_header_is_error_not_panic() {

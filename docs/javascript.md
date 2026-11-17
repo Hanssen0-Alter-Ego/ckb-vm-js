@@ -1,7 +1,7 @@
 # JavaScript and TypeScript API
 
-Build the Rust/WASM package before importing the default bindings. The generated
-web-target wasm-bindgen files must be under `pkg/`. The package is ESM and includes
+The npm release includes the generated Rust/WASM bindings. Source-checkout users
+must build first; generated web-target wasm-bindgen files belong under `pkg/`. The package is ESM and includes
 TypeScript declarations. `verify` performs no network requests; all transaction
 inputs, dependencies and contextual data come from the request.
 
@@ -28,10 +28,13 @@ binding location.
 All CKB integer request and response fields use RPC hex strings, never JavaScript
 `number` or `bigint`. Script-group input/output indices are ordinary numbers.
 
-## Install a built tarball
+## Install the published package or a built tarball
 
-The GitHub CI artifact contains a ready-to-install `.tgz`. No npm registry
-release is claimed. After downloading and extracting the CI artifact:
+```sh
+npm install --save-exact ckb-vm-js@0.2.0
+```
+
+The GitHub CI artifact also contains a ready-to-install `.tgz` for testing a specific source revision. After downloading and extracting that artifact:
 
 ```sh
 npm install ./ckb-vm-js-0.2.0.tgz

@@ -1,6 +1,6 @@
 # 发布与 npm Trusted Publishing
 
-截至 2026-11-12，本次只添加发布流程，**尚未配置 npm 信任关系，也没有替你注册包、创建 GitHub environment、tag、Release 或执行 npm 发布**。`npm pack` 生成本地 tarball，不等于发布。
+截至 2026-11-17，`ckb-vm-js@0.2.0` 已通过 GitHub Actions Trusted Publishing 发布并验证可安装；[发布运行](https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/actions/runs/44030064919)对应源码 `14b60fc23689b6f6ea6b20f3afd6fc5a056e93b3`。首次建包和信任配置已经完成，日常发布请从第 4 节开始。以下首次配置步骤保留为重建/排障参考；不要重发已存在的版本。`npm pack` 生成本地 tarball，不等于发布。
 
 ## 工作流做什么
 
@@ -15,12 +15,14 @@
 
 参考了 [CCC 发布流程](https://github.com/ckb-devrel/ccc/blob/b7babe4c25bdf0cf9f0e2d5a89b8dc6b12a08414/.github/workflows/_publish-packages.yaml)的独立发布环境和构建后发布结构。该版本 CCC 使用 Changesets 和 `NPM_TOKEN`；本项目是单包，因此没有照搬 monorepo、canary/评论触发或长期 token 方案。
 
+希望自己 clone、构建并首发，请按[本地首次发布完整步骤](local-first-publish.md)执行；不要只 npm pack 未构建的 checkout。
+
 ## 1. 首次创建 npm 包
 
 Trusted Publisher 是**包级设置**。还不存在的 `ckb-vm-js` 不能凭空配置 OIDC 并直接完成首发。由准备拥有该 npm 包的维护者，在确认名称仍可用并审阅内容后，选择一种方式：
 
 1. **交互式首次发布**：下载已经验证的 `ckb-vm-js-0.2.0.tgz`，在自己的终端登录 npm，完成需要的 2FA，再发布该文件。
-2. **先暂存创建包**：新版 npm 支持用交互式会话执行 `npm stage publish` 来创建新包。对于尚不存在的包，npm 会立即创建公开的 `0.0.0-stage` 占位版本；实际暂存版本及其内容在维护者批准前不公开。这不是无公开副作用的预演。创建包之后就能管理设置和配置 Trusted Publisher。这不是匿名/OIDC 自动首次注册。[官方暂存说明](https://docs.npmjs.com/staged-publishing/)
+2. **先暂存创建包**：新版 npm 支持用交互式会话执行 `npm stage publish` 来创建新包。对于新包，npm 会立即公开 `0.0.0-stage` 占位版本；实际暂存版本及内容在批准前不公开。这不是无公开副作用的预演。创建包之后就能管理设置和配置 Trusted Publisher。这不是匿名/OIDC 自动首次注册。[官方新包暂存说明](https://docs.npmjs.com/staged-publishing/)
 
 只有在你准备实际发布时，才自行运行以下示例，二选一：
 
@@ -36,11 +38,13 @@ npm publish ./ckb-vm-js-0.2.0.tgz --access public --ignore-scripts
 npm stage publish ./ckb-vm-js-0.2.0.tgz --access public
 ```
 
-本工作流要求已有一个**公开可读的 bootstrap 版本**。如果使用暂存方式，请先批准第一版，再用下一个版本验证自动发布。工作流遇到 registry 404 会明确停止，不会降级到 token 或自动注册。读取 registry 的错误也不会被当作“版本不存在”。
+本工作流要求已有一个**公开可读的 bootstrap 版本**。如果使用暂存方式，请先批准第一版，再用下一个版本验证自动发布。live Release 在安装构建依赖前检查公开 registry，并在发布前再次检查版本和 dist-tag；手动 dry-run 保持可离线准备首包。工作流遇到 registry 404 会明确停止，不会降级到 token 或自动注册。读取 registry 的错误也不会被当作“版本不存在”。
 
 已发布的包名/版本组合不能再次使用。若先发布了 `0.2.0`，第一个 OIDC Release 应使用新版本，例如 `0.2.1`，不能再发布 `v0.2.0`。[npm publish 规则](https://docs.npmjs.com/cli/v11/commands/npm-publish/)
 
-发布前仍应审阅实验性验证范围及 [第三方许可证 notice 缺口](../THIRD_PARTY_NOTICES.md)。自动化和 provenance 不会代替代码或许可证审查。
+live 检查同时拒绝 notices 中仍标记的未解决缺口，发布前再检查 tarball 内的 notices。该检查不是法律审查。
+
+发布前仍应审阅实验性验证范围及 [第三方许可证声明与来源](../THIRD_PARTY_NOTICES.md)。自动化和 provenance 不会代替代码或许可证审查。
 
 ## 2. GitHub 配置（仓库管理员完成）
 
@@ -91,4 +95,4 @@ npm stage publish ./ckb-vm-js-0.2.0.tgz --access public
 - 第一次手动 dry-run 成功**不证明 OIDC 已配置**：该模式刻意不申请发布身份，也不写 registry。
 - 发布调用超时或结果不明确：先查 npm 和 Actions 输出，确认是否已经接受该版本，不要盲目重发。已公开的版本不可覆盖，registry 检查会停止重复发布。
 - 如构建成功、发布 job 失败，先排查配置/状态，再选择 GitHub 的“重跑失败 jobs”；不要假设重新打包的文件与此前测试文件相同。
-- 维护检查包括 release guard 单元测试、Actionlint 和离线包安装；普通 CI 会从源码重新构建并验证 native/WASM/browser，结果以对应 commit 的检查为准。没有执行真实 `npm publish`、创建远端 tag/Release、配置 environment 或 npm trust，因此首次 OIDC 发布仍须由维护者配置后验证。
+- 维护检查包括 release guard 单元测试、Actionlint 和离线包安装；普通 CI 会从源码重新构建并验证 native/WASM/browser，结果以对应 commit 的检查为准。`0.2.0` 的真实发布已完成并验证；后续版本仍须核对各自运行、registry 版本和 provenance，不能把首次成功当作所有未来发布的保证。

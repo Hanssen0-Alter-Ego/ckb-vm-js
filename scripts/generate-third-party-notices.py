@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Generate distributable notices: python scripts/generate-third-party-notices.py metadata.json.
-Run cargo metadata --format-version 1 to obtain metadata for the locked workspace first.
+Run cargo metadata --locked --format-version 1 --filter-platform wasm32-unknown-unknown first.
 Upstream license snapshots and their source URLs live in scripts/licenses/.
 """
-import json, pathlib, sys
+import hashlib, json, pathlib, sys
 root=pathlib.Path(__file__).resolve().parent.parent
 meta=json.load(open(sys.argv[1])); snapshots=root/'scripts/licenses'
 sources={(n,v):(u,f) for n,v,u,f in json.loads((snapshots/'sources.json').read_text())}
-groups={}; gaps=[]; count=0
+declared={(e['name'],e['version']):e for e in json.loads((snapshots/'declared-licenses.json').read_text())}
+groups={}; gaps=[]; declarations=[]; count=0
 def add(text, label, source):
     groups.setdefault(text,[]).append((label,source))
 def local(p,f,label=None):
@@ -27,10 +28,23 @@ for p in meta['packages']:
         else:
             url,name=sources.get((p['name'],p['version']),('MISSING',''))
             if name:add((snapshots/name).read_text(),f"{p['name']} {p['version']} ({p['license']})",url)
+            elif (p['name'],p['version']) in declared:
+                entry=declared[(p['name'],p['version'])]
+                manifest=d/'Cargo.toml.orig'
+                if p['license'] != entry['license'] or hashlib.sha256(manifest.read_bytes()).hexdigest() != entry['manifest_sha256']:
+                    raise ValueError(f"Declared-license evidence changed for {p['name']} {p['version']}")
+                if hashlib.sha256((snapshots/entry['text_file']).read_bytes()).hexdigest() != entry['text_sha256']:
+                    raise ValueError('SPDX reference text checksum changed')
+                declarations.append(entry)
+                add((snapshots/entry['text_file']).read_text(), f"{p['name']} {p['version']} (explicit manifest MIT declaration; SPDX reference text, not a recovered upstream LICENSE file)", entry['text_source'])
             else:gaps.append(f"{p['name']} {p['version']} ({p['license']}); upstream: {p['repository']}")
     for f in selected:local(p,f)
     for f in d.rglob('*'):
-        if f.is_file() and f.parent!=d and any(k in f.name.lower() for k in ['license','copying','notice']):local(p,f,f"{p['name']} {p['version']} bundled component: {f.relative_to(d)}")
+        if f.is_file() and f.suffix not in ['.a', '.lib'] and f.parent!=d and any(k in f.name.lower() for k in ['license','copying','notice']):local(p,f,f"{p['name']} {p['version']} bundled component: {f.relative_to(d)}")
+    if p['name']=='blake2b-ref':
+        add((snapshots/'blake2b-ref-wrapper-upstream-MIT.txt').read_text(), 'blake2b-ref wrapper: license of the upstream API source credited in its README (blake2b-rs 0.1.5); retained attribution, not an inferred copyright assignment for blake2b-ref modifications', 'https://raw.githubusercontent.com/nervosnetwork/blake2b-rs/2e7c9d5e76156cbfdb4e7d90ff7534c27623d5e0/LICENSE')
+        f=d/'src/blake2b_ref.rs';s=f.read_text();start=s.index('/*\n   BLAKE2 reference')
+        add(s[start:s.index('*/',start)+2]+'\n','BLAKE2 bundled in blake2b-ref 0.3.1 (CC0-1.0 selected)', 'https://raw.githubusercontent.com/jjyr/blake2b-ref.rs/f1efc4872d67a8d4c4a57d2d0e16f8b5e53724b9/src/blake2b_ref.rs')
     if p['name']=='blake2b-rs':
         f=d/'BLAKE2/ref/blake2b-ref.c';s=f.read_text();add(s[:s.index('*/')+2]+'\n','BLAKE2 bundled in blake2b-rs 0.2.0 (CC0-1.0 selected)',f"https://crates.io/crates/blake2b-rs/0.2.0 — {f.relative_to(d)}")
 # siphasher 0.3.11 ships COPYRIGHT/choice text but omits the referred MIT body.
@@ -41,7 +55,11 @@ for p in meta['packages']:
         local(p,pathlib.Path(p['manifest_path']).parent/'LICENSE-MIT','MIT license body referenced by siphasher 0.3.11 COPYING; body sourced from siphasher 1.0.4')
 for name,url in json.loads((snapshots/'extra-sources.json').read_text()).items():
     add((snapshots/name).read_text(), 'ckb-system-scripts 0.5.4 bundled component: '+name,url)
-lines=['# Third-party notices','',f'This inventory covers {count} third-party Cargo package/version entries from the locked build, including build-only and target-specific dependencies. Their inclusion does not imply every package is linked into the distributed WebAssembly. npm development tools are not bundled in the published package.','', 'License texts and notices below are reproduced from the published crate contents, pinned vendored source trees, or the upstream URLs shown. Identical texts are printed once. MIT is selected where an MIT alternative is available; additional Unicode and bundled-component notices remain included. BLAKE2 uses its offered CC0 option. Upstream URLs using a branch rather than a commit/tag are explicitly current-upstream fallbacks, not verified release snapshots.','', 'The project license does not replace these third-party terms. Preserve this file when redistributing the package.','']
+lines=['# Third-party notices','',f'This inventory covers {count} third-party Cargo package/version entries from the locked wasm32-unknown-unknown dependency graph, including build-only dependencies. Their inclusion does not imply every package is linked into the distributed WebAssembly. npm development tools are not bundled in the published package.','', 'License texts and notices below are reproduced from the published crate contents, pinned vendored source trees, or the upstream URLs shown. Explicit SPDX declaration fallbacks are individually documented below. Identical texts are printed once. MIT is selected where an MIT alternative is available; additional Unicode and bundled-component notices remain included. BLAKE2 uses its offered CC0 option. Upstream URLs using a branch rather than a commit/tag are explicitly current-upstream fallbacks, not verified release snapshots.','', 'The project license does not replace these third-party terms. Preserve this file when redistributing the package.','']
+if declarations:
+    lines+=['## Explicit SPDX declarations without bundled license files','', 'The following exact published manifests declare MIT. Cargo defines this field as the package license; the absence of a separate LICENSE file is not an absent license declaration. The standard MIT reference text below is reproduced from SPDX. Its copyright placeholders remain verbatim template text and do not identify a package copyright holder. No package-level copyright statement was found in these upstream release sources; author metadata is not substituted for one. All located original component notices remain included. See scripts/licenses/VERIFICATION.md in the source repository for the evidence and limits.','']
+    for e in declarations:lines += [f"- {e['name']} {e['version']}: {e['declaration_source']}; published Cargo.toml.orig SHA256: {e['manifest_sha256']}"]
+    lines += ['']
 if gaps:lines+=['## Unresolved release-notice gaps','', 'The following manifests declare licenses, but matching complete upstream license notices were not available in the collected sources. These entries must be resolved before treating this inventory as complete.','']+['- '+g for g in gaps]+['']
 for i,(body,entries) in enumerate(groups.items(),1):
     lines += [f'## Notice {i}','']

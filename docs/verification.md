@@ -44,11 +44,11 @@ Audit references at the pinned CKB commit:
 - [Same-block cell metadata and ordering](https://github.com/nervosnetwork/ckb/blob/6abb474c1678e67dae0337abeb8bfd77cfb576e3/util/types/src/core/cell.rs).
 
 
-The corpus contains **62 fixtures**. Coverage includes default and explicit submitted mode; submitted versus committed earliest-height `since`; same-block ordering and zero/positive relative since; explicit unconfirmed inputs and header/extension syscall results; omitted origins; custom transaction version, byte limit, maturity and VM activation; tip/candidate mismatch; height overflow; and invalid median configuration. A large configured median window reaching genesis checks that allocation follows actual ancestry, rather than eagerly reserving the whole caller-supplied count.
+The v0.2 corpus contains **62 fixtures**. New coverage includes default and explicit submitted mode; submitted versus committed earliest-height `since`; same-block ordering and zero/positive relative since; explicit unconfirmed inputs and header/extension syscall results; omitted origins; custom transaction version, byte limit, maturity and VM activation; tip/candidate mismatch; height overflow; and invalid median configuration. A large configured median window reaching genesis checks that allocation follows actual ancestry, rather than eagerly reserving the whole caller-supplied count.
 
 Four custom-chain fixtures isolate the DAO size gate: submitted mode before block activation, committed mode before/at activation, and the origin-height threshold. These use a tiny success program as a stand-in for the DAO type script and **are not full Nervos DAO withdrawal tests**.
 
-## Local execution record (2026-11-12)
+## v0.2 local execution record (2026-11-12)
 
 - Rust 1.95.0 formatting, Clippy with warnings denied, and 4 tests passed; one test executes all 62 fixture mutations.
 - 63 real-WASM tests passed (62 fixtures plus initialization/error boundary).
@@ -67,10 +67,8 @@ Four custom-chain fixtures isolate the DAO size gate: submitted mode before bloc
 - The API trusts the developer's external context. It cannot authenticate headers, cell data, extensions, spent status, ancestry or proposal inclusion.
 - Browser execution should use the Worker interface. Workers may be terminated by the caller; the direct synchronous WASM call has no cooperative cancellation API.
 
+Earlier pre-release execution records are retained in the [historical appendix](verification-history.md); they do not validate current revisions.
+
 ## Distribution notices
 
-`THIRD_PARTY_NOTICES.md` records the dependency notices and their provenance. Two
-upstream MIT notice texts were not found for blake2b-ref 0.3.1 and
-ckb-system-scripts 0.5.4; those gaps and current-upstream fallbacks are explicit.
-This attribution inventory is not a claim that licensing review is complete.
-Resolve the listed gaps before production redistribution.
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) records dependency notices and provenance. For blake2b-ref 0.3.1 and ckb-system-scripts 0.5.4, the exact published manifests explicitly declare MIT but do not bundle separate license files; SPDX text and the limits of that evidence are documented in [the license verification record](../scripts/licenses/VERIFICATION.md). This inventory is not a claim of complete legal review.

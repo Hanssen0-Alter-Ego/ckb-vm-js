@@ -4,7 +4,7 @@ Offline CKB transaction verification in WebAssembly, with a JavaScript/TypeScrip
 
 This project uses **CKB's own transaction verifiers and CKB-VM**, pinned as Git submodules. It does not substitute a JavaScript VM. The caller supplies the consensus parameters consumed by the pinned transaction-verification paths. Both the ordinary full-transaction API and a selected-script-group API are available.
 
-**Unreleased experimental implementation. Not audited. A successful result is relative to the supplied snapshot, not proof that the network will accept the transaction.** Do not use it as the sole safeguard for funds.
+**Early experimental release. Not audited. A successful result is relative to the supplied snapshot, not proof that the network will accept the transaction.** Do not use it as the sole safeguard for funds.
 
 ## What `verify` checks
 
@@ -54,18 +54,22 @@ Rust 1.95.0 is pinned in `rust-toolchain.toml`. `clang` is needed for upstream s
 
 The repository and npm package/import name are `ckb-vm-js`.
 
-Build before installing from a checkout or making an npm tarball. The package has not been published to npm. `pkg/` contains the generated JS loader, WASM and declarations and is included in the package tarball.
+`ckb-vm-js@0.2.0` is published on npm. Install the released package with `npm install --save-exact ckb-vm-js@0.2.0`; no Rust build is needed for registry consumers. Build before installing from a source checkout or making a new npm tarball. `pkg/` contains the generated JS loader, WASM and declarations and is included in the package tarball.
 
 ## Publishing
+
+The [0.2.0 release](https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/releases/tag/v0.2.0) was published through GitHub Actions Trusted Publishing. For future releases, follow the release process below. The [local first-publish guide](docs/local-first-publish.md) remains a bootstrap reference, not a reason to republish an existing version.
 
 [发布工作流与 Trusted Publisher 配置指南](docs/publishing.md) explains the one-time npm bootstrap, exact trust fields, protected environment and release process. Manual runs only build/test/package; publishing a GitHub Release is the only live npm trigger. Adding this workflow does not configure accounts or publish a package.
 
 ## Use
 
 ```js
-import { createVerifier } from './js/index.js';
+import { readFile } from 'node:fs/promises';
+import { createVerifier } from 'ckb-vm-js';
 
-const verifier = await createVerifier(); // loads the local pkg WASM asset once
+const wasm = await readFile(new URL(import.meta.resolve('ckb-vm-js/wasm')));
+const verifier = await createVerifier({ wasm }); // explicit offline Node initialization
 const result = await verifier.verify(request);
 if (!result.ok) console.error(result.error.code, result.error.message);
 else console.log(result.cycles, result.fee, result.groups);
@@ -78,7 +82,7 @@ const oneGroup = await verifier.verifyScriptGroup(request, {
 
 For fully offline initialization in Node, pass `wasm: await readFile(...)`. For browsers, use `createWorkerVerifier` to keep CPU-bound verification off the UI thread. The returned Promise does not by itself make direct verification non-blocking. See [JavaScript and Worker usage](docs/javascript.md).
 
-The foundation interface has 62 synthetic transaction/context fixtures, all passing locally in native and real WASM execution, including comparison with an unmodified-upstream native build. JavaScript/TypeScript and offline installed-tarball checks also pass. Browser execution is checked by the [CI workflow](https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/actions); inspect the check for the exact commit rather than assuming a previous browser pass covers this revision. See the [verification record and limits](docs/verification.md).
+The v0.2 foundation interface has 62 synthetic transaction/context fixtures, all passing locally in native and real WASM execution, including comparison with an unmodified-upstream native build. JavaScript/TypeScript and offline installed-tarball checks also pass. Browser execution is checked by the [CI workflow](https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/actions); inspect the check for the exact commit rather than assuming a previous browser pass covers this revision. See the [verification record and limits](docs/verification.md).
 
 ## Request
 
@@ -132,4 +136,4 @@ Success returns `{ ok: true, scope: 'transaction' | 'script_group', cycles, fee?
 
 See [verification notes](docs/verification.md) for actual checks run and remaining test gaps. This is an independent integration, not an official Nervos release. Upstream submodules retain their own licenses.
 
-Dependency attribution and unresolved upstream notice gaps are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Licensing review, like consensus coverage, is not claimed complete for this experimental package.
+Dependency attribution and explicit source limitations are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Licensing review, like consensus coverage, is not claimed complete for this experimental package.

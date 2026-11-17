@@ -10,10 +10,13 @@ export interface Transaction {
   outputs: CellOutput[];
   outputs_data: Hex[];
   witnesses: Hex[];
+  /** Optional RPC view hash; must match the hash computed from the transaction. */
   hash?: Hex;
 }
 export interface Header {
-  compact_target: Hex; dao: Hex; epoch: Hex; extra_hash: Hex; hash?: Hex;
+  compact_target: Hex; dao: Hex; epoch: Hex; extra_hash: Hex;
+  /** Optional RPC view hash; must match the hash computed from the header. */
+  hash?: Hex;
   nonce: Hex; number: Hex; parent_hash: Hex; proposals_hash: Hex;
   timestamp: Hex; transactions_root: Hex; version: Hex;
 }
