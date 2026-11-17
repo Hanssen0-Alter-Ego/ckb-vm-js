@@ -47,7 +47,7 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npm run test:browser
-      - name: Cross-browser startup and keyboard recovery
+      - name: Cross-browser execution and nested editor recovery
         run: |
           npx playwright install --with-deps firefox webkit
           npx playwright test --config playwright.compat.config.js
