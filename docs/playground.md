@@ -72,7 +72,8 @@ The main verification workflow additionally installs Firefox and WebKit and runs
 `npx playwright test --config playwright.compat.config.js`. This bounded suite
 checks synchronous Worker startup failure/retry, real-WASM success, keyboard
 cancellation, invalid editor Escape/focus recovery, and nested header/extension
-Apply, Save, Back and Escape behavior. Repeated Enter after applying extension
+Apply, Save, Back and Escape behavior, plus shared-cell dependency sessions and
+reference-change recovery. Repeated Enter after applying extension
 information stays on Apply rather than committing the outer session. It does not claim the
 entire workbench is accepted in every browser or on physical mobile devices.
 Evidence is uploaded under the CI `browser-evidence` artifact; compatibility
