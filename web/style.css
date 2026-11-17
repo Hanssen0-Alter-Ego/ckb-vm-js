@@ -124,3 +124,12 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 .output details{border-top:1px solid var(--line);margin-top:20px}.output details>summary{padding-block:16px;font-size:13px}.output #group-members{white-space:pre-line;font-size:13px;line-height:1.9;margin:0 0 10px;overflow-wrap:anywhere}.output .requested-scope{font-size:12px;overflow-wrap:anywhere}.output #result{max-height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:600px){.output{padding:18px}.output #summary{font-size:20px}.result-heading{gap:10px}.output .result-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.result-metrics strong{font-size:16px}}
 @media(prefers-reduced-motion:no-preference){.output:not([hidden]){animation:result-appear 180ms ease-out}@keyframes result-appear{from{opacity:.5;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}}
+
+.output .result-metrics{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin:22px 0}
+.output .result-metrics[hidden],.result-metrics>div[hidden]{display:none}
+.output:not([data-kind="success"]) .result-metrics{display:flex;flex-wrap:wrap;gap:24px;padding:14px 0}
+.output:not([data-kind="success"]) .result-metrics[hidden]{display:none}
+.output:not([data-kind="success"]) .result-metrics strong{font-size:14px}
+#engine-error-doc{display:inline-block;margin-top:12px;font:13px/1.6 system-ui,sans-serif}
+#engine-error-doc[hidden]{display:none}
+@media(max-width:600px){.output .result-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}

@@ -21,19 +21,19 @@ test('explanations follow returned engine results rather than chosen experiment'
   assert.match(explain({ok:false,error:{code:'InvalidTransaction',message:'OutputsSumOverflow'}}),/cannot create extra/);
   assert.match(explain({ok:false,error:{code:'InvalidTransaction',message:'ExceededMaximumCycles'}}),/budget ran out/);
   assert.match(explain({ok:false,error:{code:'ValidationFailure'}}),/script rejected/i);
-  assert.match(explain({ok:false,error:{code:'Other'}}),/Full engine response/);
+  assert.match(explain({ok:false,error:{code:'Other'}}),/engine error is shown below/);
   assert.match(explain({ok:true,scope:'script_group'}),/were not checked/);
-  assert.match(explain({ok:true,scope:'transaction',fee:'0x1'}),/0.00000001 CKB/);
+  assert.doesNotMatch(explain({ok:true,scope:'transaction',fee:'0x1'}),/CKB/);
 });
 
 
 test('missing extension explanation identifies the actual header without guessing null',()=>{
- const hash=`0x${'ab'.repeat(32)}`;const result={ok:false,error:{code:'MissingContext',message:`explicit extension data or null required for ${hash}`}};const explanation=explain(result,{transaction:{header_deps:[hash]}});assert.match(explanation,/Header dep index 0/);assert.ok(explanation.includes(hash));assert.match(explanation,/Unspecified does not mean no extension/);assert.match(explain(result,{transaction:{header_deps:[]}}),/supplied cell origin/);assert.match(explain({ok:false,error:{code:'Other',message:result.error.message}}),/Full engine response/);
+ const hash=`0x${'ab'.repeat(32)}`;const result={ok:false,error:{code:'MissingContext',message:`explicit extension data or null required for ${hash}`}};const explanation=explain(result,{transaction:{header_deps:[hash]}});assert.match(explanation,/Header dep index 0/);assert.ok(explanation.includes(hash));assert.match(explanation,/Unspecified does not mean no extension/);assert.match(explain(result,{transaction:{header_deps:[]}}),/supplied cell origin/);assert.match(explain({ok:false,error:{code:'Other',message:result.error.message}}),/engine error is shown below/);
 });
 
 
 test('invalid dep group maps the encoded outpoint only to matching group references',()=>{
- const hash='ab'.repeat(32),message=`InvalidDepGroup(OutPoint(0x${hash}02000000))`,result={ok:false,error:{code:'Resolution',message}};const request={transaction:{cell_deps:[{dep_type:'code',out_point:{tx_hash:`0x${hash}`,index:'0x2'}},{dep_type:'dep_group',out_point:{tx_hash:`0x${hash}`,index:'0x2'}}]}};assert.match(explain(result,request),/Cell dep index 1/);assert.doesNotMatch(explain(result,request),/Cell dep index 0/);assert.match(explain(result,{transaction:{cell_deps:[]}}),/outpoint 0x/);assert.match(explain({ok:false,error:{code:'Other',message}},request),/Full engine response/);
+ const hash='ab'.repeat(32),message=`InvalidDepGroup(OutPoint(0x${hash}02000000))`,result={ok:false,error:{code:'Resolution',message}};const request={transaction:{cell_deps:[{dep_type:'code',out_point:{tx_hash:`0x${hash}`,index:'0x2'}},{dep_type:'dep_group',out_point:{tx_hash:`0x${hash}`,index:'0x2'}}]}};assert.match(explain(result,request),/Cell dep index 1/);assert.doesNotMatch(explain(result,request),/Cell dep index 0/);assert.match(explain(result,{transaction:{cell_deps:[]}}),/outpoint 0x/);assert.match(explain({ok:false,error:{code:'Other',message}},request),/engine error is shown below/);
 });
 
 
@@ -48,7 +48,7 @@ test('verified group display filters both type and hash, and refuses unavailable
 
 
 test('missing selected script group gives actionable guidance',()=>{
- const result={ok:false,error:{code:'Script',message:'ScriptNotFound: code_hash: Byte32(0x'+'00'.repeat(32)+')'}};assert.match(explain(result),/choose a listed group/i);assert.match(explain(result),/not the code hash/i);assert.match(explain({...result,error:{code:'Other',message:result.error.message}}),/Full engine response/);
+ const result={ok:false,error:{code:'Script',message:'ScriptNotFound: code_hash: Byte32(0x'+'00'.repeat(32)+')'}};assert.match(explain(result),/choose a listed group/i);assert.match(explain(result),/not the code hash/i);assert.match(explain({...result,error:{code:'Other',message:result.error.message}}),/engine error is shown below/);
 });
 
 
@@ -70,4 +70,17 @@ test('invalid request length explanation reports only the engine-provided detail
  assert.doesNotMatch(explain(result),/script hash/i);
  assert.doesNotMatch(explain({...result,error:{...result.error,code:'Other'}}),/2 hex digits/);
  assert.doesNotMatch(explain({...result,error:{...result.error,message:message.replace('64 digits','40 digits')}}),/2 hex digits/);
+});
+
+test('only exact official script error documentation is linked', async () => {
+  const { scriptErrorDocumentation } = await import('../../web/guided.js');
+  const url = `https://nervosnetwork.github.io/ckb-script-error-codes/by-data-hash/${'a'.repeat(64)}.html#-1`;
+  const error = {code:'InvalidTransaction',message:`Script(TransactionScriptError { source: Inputs[0].Lock, cause: ValidationFailure: see error code -1 on page ${url} })`};
+  assert.equal(scriptErrorDocumentation(error), url);
+  for (const bad of [url.replace('https:', 'http:'), url.replace('github.io/', 'github.io.evil.example/'), url+'?x=1', url.replace('#-1','#2'), 'javascript:alert(1)', url.replace('nervosnetwork.github.io','user@nervosnetwork.github.io')]) {
+    assert.equal(scriptErrorDocumentation({...error,message:error.message.replace(url,bad)}), null);
+  }
+  assert.equal(scriptErrorDocumentation({...error,code:'Other'}),null);
+  assert.equal(scriptErrorDocumentation({...error,message:'see '+url}),null);
+  assert.doesNotMatch(explain({ok:true,scope:'transaction',fee:'0x0'}), /Fee in this snapshot/);
 });

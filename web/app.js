@@ -1,6 +1,6 @@
 import { createWorkbench } from './workbench.js';
 import { parseLossless, stringifyLossless } from './lossless-json.js';
-import { ckb, explain, verifiedGroupSummary, requestedScope } from './guided.js';
+import { ckb, scriptErrorDocumentation, explain, verifiedGroupSummary, requestedScope } from './guided.js';
 import { inspectRequest } from './workbench-model.js';
 import { createWorkerVerifier } from './js/index.js';
 const $ = (id) => document.getElementById(id);
@@ -98,8 +98,8 @@ const workbench = createWorkbench($('workbench'), {
   edited() { checkCurrentDraft(); markEdited(); },
   beginSession() { checkCurrentDraft(); editorSessionOpen = true; },
   endSession(discard, changed) { editorSessionOpen = false; if (!discard && changed && draftLost) persistDraft(); },
-  capture: () => ({ overview: { kind: document.querySelector('.output').dataset.kind, verdict: $('result-verdict').textContent, fee: $('result-fee').textContent, budget: $('cycle-budget').textContent, errorHidden: $('engine-error').hidden, errorCode: $('engine-error-code').textContent, errorMessage: $('engine-error-message').textContent, rawOpen: $('raw-output').open }, text: $('request').value, dirty, unsaved, exportRequested, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, requestedScope: $('requested-scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden, groupTitle: $('group-title').textContent, groupMembers: $('group-members').textContent, groupHidden: $('group-details').hidden, groupOpen: $('group-details').open }),
-  restore(saved) { checkCurrentDraft(); $('request').value = saved.text; dirty = saved.dirty; unsaved = saved.unsaved; exportRequested = saved.exportRequested; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; $('requested-scope').textContent = saved.requestedScope; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; document.querySelector('.output').dataset.kind=saved.overview.kind; $('result-verdict').textContent=saved.overview.verdict; $('result-fee').textContent=saved.overview.fee; $('cycle-budget').textContent=saved.overview.budget; $('engine-error').hidden=saved.overview.errorHidden; $('engine-error-code').textContent=saved.overview.errorCode; $('engine-error-message').textContent=saved.overview.errorMessage; $('raw-output').open=saved.overview.rawOpen; try{renderRepairs(JSON.parse(saved.result),readRequest(saved.text));}catch{hideRepairs();} showSource(); if (!draftLost) persistDraft(); },
+  capture: () => ({ overview: { kind: document.querySelector('.output').dataset.kind, verdict: $('result-verdict').textContent, fee: $('result-fee').textContent, budget: $('cycle-budget').textContent, errorHidden: $('engine-error').hidden, errorCode: $('engine-error-code').textContent, errorMessage: $('engine-error-message').dataset.raw ?? '', errorType: $('engine-error-message').dataset.code ?? '', rawOpen: $('raw-output').open }, text: $('request').value, dirty, unsaved, exportRequested, status: $('status').textContent, statusKind: $('status').dataset.kind, summary: $('summary').textContent, explanation: $('explanation').textContent, explanationKind: $('explanation').dataset.kind, result: $('result').textContent, scope: $('scope').textContent, requestedScope: $('requested-scope').textContent, cycles: $('cycles').textContent, elapsed: $('elapsed').textContent, outputHidden: document.querySelector('.output').hidden, groupTitle: $('group-title').textContent, groupMembers: $('group-members').textContent, groupHidden: $('group-details').hidden, groupOpen: $('group-details').open }),
+  restore(saved) { checkCurrentDraft(); $('request').value = saved.text; dirty = saved.dirty; unsaved = saved.unsaved; exportRequested = saved.exportRequested; status(saved.status, saved.statusKind); $('summary').textContent = saved.summary; $('explanation').textContent = saved.explanation; $('explanation').dataset.kind = saved.explanationKind; $('result').textContent = saved.result; $('requested-scope').textContent = saved.requestedScope; for (const id of ['scope','cycles','elapsed']) $(id).textContent = saved[id]; document.querySelector('.output').hidden = saved.outputHidden; $('group-title').textContent=saved.groupTitle; $('group-members').textContent=saved.groupMembers; $('group-details').hidden=saved.groupHidden; $('group-details').open=saved.groupOpen; document.querySelector('.output').dataset.kind=saved.overview.kind; $('result-verdict').textContent=saved.overview.verdict; $('result-fee').textContent=saved.overview.fee; $('cycle-budget').textContent=saved.overview.budget; $('engine-error').hidden=saved.overview.errorHidden; $('engine-error-code').textContent=saved.overview.errorCode; renderEngineMessage({code:saved.overview.errorType,message:saved.overview.errorMessage}); $('raw-output').open=saved.overview.rawOpen; syncMetrics(); try{renderRepairs(JSON.parse(saved.result),readRequest(saved.text));}catch{hideRepairs();} showSource(); if (!draftLost) persistDraft(); },
 });
 window.addEventListener('beforeunload', event => { checkCurrentDraft(); if(unsaved||draftLost||workbench.hasPendingDraft()){event.preventDefault();event.returnValue='';} });
 function markEdited() {
@@ -113,6 +113,24 @@ function markEdited() {
 function status(label, kind = '') { document.querySelector('.output').hidden = ['Ready','Loading sample','Edited'].includes(label);  $('status').textContent = label; $('status').dataset.kind = kind; }
 function hideRepairs(){const area=$('repair-actions');area.hidden=true;area.replaceChildren();}
 function renderRepairs(result,request){hideRepairs();if(result?.error?.code!=='InvalidRequest')return;const issues=inspectRequest(request).diagnostics.filter(d=>/^transaction\.(?:outputs_data|witnesses)\[\d+\]$/.test(d.path));const area=$('repair-actions');for(const d of issues){const match=/^transaction\.(outputs_data|witnesses)\[(\d+)\]$/.exec(d.path),index=Number(match[2]);if(match[1]==='outputs_data'&&(!Array.isArray(request?.transaction?.outputs)||!request.transaction.outputs[index]||typeof request.transaction.outputs[index]!=='object'))continue;const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=match[1]==='outputs_data'?`Edit output index ${index} data`:`Edit witness index ${index}`;button.onclick=()=>workbench.focusDiagnostic(d.path);area.append(button);}if(area.children.length){const hint=document.createElement('p');hint.textContent='Preflight also found possible formatting issues; these may not be the cause of this error.';area.prepend(hint);area.hidden=false;}}
+function syncMetrics() {
+  for (const id of ['scope', 'cycles', 'result-fee', 'elapsed']) {
+    const value = $(id).textContent;
+    $(id).parentElement.hidden = !value || value === '—' || value === 'Not reported';
+  }
+  document.querySelector('.result-metrics').hidden = ![...document.querySelector('.result-metrics').children].some(el => !el.hidden);
+  document.querySelector('.requested-scope').hidden = $('requested-scope').textContent === '—';
+}
+function renderEngineMessage(error) {
+  const message = error?.message ?? '';
+  const url = scriptErrorDocumentation(error);
+  $('engine-error-message').dataset.raw = message;
+  $('engine-error-message').dataset.code = error?.code ?? '';
+  $('engine-error-message').textContent = url ? message.replace(url, '[official documentation linked below]') : message;
+  $('engine-error-doc').hidden = !url;
+  if (url) $('engine-error-doc').href = url;
+  else $('engine-error-doc').removeAttribute('href');
+}
 function renderResultOverview(result, request) {
   const output = document.querySelector('.output');
   output.dataset.kind = result.ok ? 'success' : 'error';
@@ -122,12 +140,12 @@ function renderResultOverview(result, request) {
   const error = result.error;
   $('engine-error').hidden = !error;
   $('engine-error-code').textContent = error?.code ? `Engine error · ${error.code}` : 'Engine error';
-  $('engine-error-message').textContent = error?.message ?? '';
+  renderEngineMessage(error); syncMetrics();
 }
-function clearOutput() { hideRepairs(); document.querySelector('.output').dataset.kind = ''; $('result-verdict').textContent = ''; $('result-fee').textContent = '—'; $('cycle-budget').textContent = ''; $('engine-error').hidden = true; $('engine-error-message').textContent = ''; $('raw-output').open = false; $('requested-scope').textContent = '—'; for (const id of ['scope', 'cycles', 'elapsed']) $(id).textContent = '—'; $('group-title').textContent=''; $('group-members').textContent=''; $('group-details').hidden=true; $('group-details').open=false; }
+function clearOutput() { hideRepairs(); document.querySelector('.output').dataset.kind = ''; $('result-verdict').textContent = ''; $('result-fee').textContent = '—'; $('cycle-budget').textContent = ''; $('engine-error').hidden = true; renderEngineMessage(null); $('raw-output').open = false; $('requested-scope').textContent = '—'; for (const id of ['scope', 'cycles', 'elapsed']) $(id).textContent = '—'; $('group-title').textContent=''; $('group-members').textContent=''; $('group-details').hidden=true; $('group-details').open=false; syncMetrics(); }
 function fail(error, stage = 'Input error') {
-  hideRepairs(); document.querySelector('.output').dataset.kind = 'error'; $('result-verdict').textContent = stage === 'Cancelled' ? 'Cancelled' : 'Not completed'; status(stage, 'error'); $('summary').textContent = error.message;
-  $('explanation').textContent = error.message; $('explanation').dataset.kind = 'error';
+  hideRepairs(); document.querySelector('.output').dataset.kind = 'error'; $('result-verdict').textContent = stage === 'Cancelled' ? 'Cancelled' : 'Not completed'; status(stage, 'error'); $('summary').textContent = stage === 'Cancelled' ? 'Verification cancelled.' : 'Verification did not complete.';
+  $('explanation').textContent = `${error.message} No verification conclusion is available.`; $('explanation').dataset.kind = 'error'; syncMetrics();
   $('result').textContent = JSON.stringify({ stage, name: error.name, message: error.message }, null, 2);
 }
 function readRequest(text) {
@@ -200,7 +218,7 @@ $('run').addEventListener('click', async () => {
   let request;
   try { request = readRequest($('request').value); } catch (error) { fail(error); return; }
   const requestJson = stringifyLossless(request);
-  $('requested-scope').textContent = requestedScope(request);
+  $('requested-scope').textContent = requestedScope(request); syncMetrics();
   const started = performance.now();
   const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
   let rejectStop;
@@ -230,7 +248,7 @@ $('run').addEventListener('click', async () => {
   finally {
     clearTimeout(timeout); verifier?.dispose(); worker.terminate();
     $('elapsed').textContent = `${Math.round(performance.now() - started)} ms`;
-    active = undefined; busy(false);
+    active = undefined; busy(false); syncMetrics();
     const output = document.querySelector('.output'); output.focus({ preventScroll: true }); output.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
   }
 });
