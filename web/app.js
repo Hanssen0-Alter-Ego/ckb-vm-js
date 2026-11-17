@@ -220,16 +220,17 @@ $('run').addEventListener('click', async () => {
   const requestJson = stringifyLossless(request);
   $('requested-scope').textContent = requestedScope(request); syncMetrics();
   const started = performance.now();
-  const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+  let worker, verifier, timeout;
   let rejectStop;
   const stopped = new Promise((_, reject) => { rejectStop = reject; });
-  const run = { stop(message) { worker.terminate(); rejectStop(new Error(message)); } };
+  const run = { stop(message) { worker?.terminate(); rejectStop(new Error(message)); } };
   active = run; busy(true); status('Running'); $('summary').textContent = 'Initializing WASM and checking the supplied snapshot…';
   $('result').textContent = 'Running in a dedicated Worker…';
   $('explanation').textContent = 'Checking this version with the real CKB engine…'; $('explanation').dataset.kind = '';
-  const timeout = setTimeout(() => run.stop('Timed out after 30 seconds. Worker terminated; reduce the request or cycle budget.'), 30_000);
-  let verifier;
   try {
+    // Construction may fail synchronously (for example, a browser policy restriction).
+    worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+    timeout = setTimeout(() => run.stop('Timed out after 30 seconds. Worker terminated; reduce the request or cycle budget.'), 30_000);
     // Racing init as well as verification lets Cancel terminate a stalled WASM fetch.
     verifier = await Promise.race([createWorkerVerifier({ worker }), stopped]);
     const result = await Promise.race([verifier.verify(requestJson), stopped]);
@@ -246,7 +247,7 @@ $('run').addEventListener('click', async () => {
       : result.error?.code==='InvalidRequest' ? 'Invalid request. The verifier did not run scripts.' : 'Snapshot rejected.';
   } catch (error) { fail(error, error.message === 'Cancelled' ? 'Cancelled' : 'Execution error'); }
   finally {
-    clearTimeout(timeout); verifier?.dispose(); worker.terminate();
+    clearTimeout(timeout); verifier?.dispose(); worker?.terminate();
     $('elapsed').textContent = `${Math.round(performance.now() - started)} ms`;
     active = undefined; busy(false); syncMetrics();
     const output = document.querySelector('.output'); output.focus({ preventScroll: true }); output.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });

@@ -22,27 +22,31 @@ The builder refuses to proceed without real generated WASM and bindings.
 
 ## Interaction
 
-The default guided mode needs no JSON. Pick a valid transfer, overspend, low
-cycle-budget or deliberately rejecting toy-lock experiment. Enter the new cell's
-capacity in decimal CKB and select a cycle budget, then click **Run verification**.
-Amounts are converted with BigInt, preserving all eight decimal places. Results
-show plain-language explanations, decimal cycles and CKB fees from the actual
-engine response. Raw requests and responses stay in expandable advanced sections.
+The transaction workbench and **JSON request** edit the same request. Open a cell
+card to edit its capacity, data and scripts; use the dependency, witness, Context
+and Settings editors for the other supplied values. Amounts use integer shannons
+and decimal CKB without rounding. Unknown JSON fields and large integer tokens
+are preserved. Invalid entries remain available for inspection instead of being
+silently repaired; Cancel changes (or Escape) restores the editor session.
 
-Guided controls generate only the bundled synthetic fixtures. They are not a
-wallet or general transaction builder. Importing, editing JSON or loading a
-developer fixture explicitly disables the guided fields; selecting an experiment
-resets to guided mode. Invalid guided amounts cannot run or export a stale request.
+**Examples & tools** offers four synthetic samples: Passing snapshot,
+Committed-phase snapshot, Selected lock group and Rejecting lock. Choose one and
+click **Load sample**. Import accepts a request object or a fixture containing
+`request`; export saves only the request. Neither uploads data. Applied changes
+are saved as local drafts in this browser on this device; unsaved editor fields
+are not backups. Local storage can be cleared or unavailable. Export important
+requests explicitly. Editing or loading another input clears stale results.
 
-In Advanced mode, choose a sample and click **Load sample**, or edit/import JSON. Import accepts a request object or a fixture containing
-`request`; export saves only the request. Neither operation uploads data. Input
-is kept in page memory and is lost on reload. Editing clears stale output.
+Run verification with the button or focus it and press Enter. The report shows
+the actual scope, cycles and fee only when reported by the engine. Rejections
+lead with their explanation and engine error. The complete original response is
+available in **Full engine response · JSON**. Requested scope is not proof that
+the requested work completed.
 
-To check only a script group, use the selected-lock sample or supply
-`script_group: { group_type: "lock" | "type", script_hash: "0x…" }` in the request.
-The hash identifies the complete script, not just its code. Omit `script_group`
-for transaction scope. The advanced mode passes the request to the existing API unchanged;
-it does not inject consensus or infer a network.
+For one script group, use Settings → Verification scope, the selected-lock
+sample, or `script_group: { group_type: "lock" | "type", script_hash: "0x…" }`
+in JSON. This hash identifies the complete script, not just its code. Omit
+`script_group` for transaction scope. No consensus or network is inferred.
 
 A successful response is conditional on supplied data. `chain_state_verified`
 is false: no canonical chain or live-cell lookup occurs. A selected group's
@@ -51,7 +55,8 @@ its actual error code/message. Parsing, transport, initialization and runtime
 failures are reported separately.
 
 Each run creates a fresh Worker. Cancel and the 30-second timeout terminate it,
-including stalled initialization. Each imported/edited request is limited to
+including stalled initialization. Synchronous Worker creation failures are also
+reported as execution errors, clear stale results and allow a subsequent retry. Each imported/edited request is limited to
 2 MiB. A Worker does not provide an independent memory quota, so these controls
 are practical UI limits, not a complete sandbox for hostile workloads.
 
@@ -62,6 +67,14 @@ project subpath in Chromium. Tests cover successful submitted/committed requests
 script-group scope, script rejection, malformed JSON, repeated runs, local file
 import/export, cancellation and recovery, mobile overflow and WASM resource URLs.
 The existing Worker test also verifies execution with browser networking disabled.
+
+The main verification workflow additionally installs Firefox and WebKit and runs
+`npx playwright test --config playwright.compat.config.js`. This bounded suite
+checks synchronous Worker startup failure/retry, real-WASM success, keyboard
+cancellation, and invalid editor Escape/focus recovery. It does not claim the
+entire workbench is accepted in every browser or on physical mobile devices.
+Evidence is uploaded under the CI `browser-evidence` artifact; compatibility
+screenshots have their own `test-results/compatibility` directory.
 
 The `Browser playground` Actions workflow rebuilds and tests WASM and the page
 before uploading a Pages artifact, then deploys only `main`. Repository Pages
