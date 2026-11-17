@@ -49,14 +49,14 @@ export function verifiedGroupSummary(result, request) {
 export function explain(result, request) {
   if (result.ok) {
     if(result.scope==='script_group')return 'Other script groups and the complete transaction were not checked. Chain state was not checked.';
-    if(result.scope==='transaction')return `Inputs, outputs and scripts satisfied the supplied rules.${result.fee !== undefined ? `\nFee in this snapshot: ${ckb(result.fee)} CKB.` : ''}\nThis does not check whether cells exist or are unspent on a network.`;
+    if(result.scope==='transaction')return `Inputs, outputs and scripts satisfied the supplied rules.\nThis does not check whether cells exist or are unspent on a network.`;
     return 'The engine did not report the verification scope. See Full engine response.';
   }
   const error = `${result.error?.code ?? ''} ${result.error?.message ?? ''}`;
   const badLength = result.error?.code === 'InvalidRequest' && /^invalid length ([0-9]+), expected a 0x-prefixed hex string with 64 digits(?: at line [0-9]+ column [0-9]+)?$/.exec(result.error?.message ?? '');
-  if (badLength) return `A value has ${badLength[1]} hex digits; it must have 64 (32 bytes), after the 0x prefix. The engine did not identify the field. Check the request and open Full engine response for the original error.`;
+  if (badLength) return `A value has ${badLength[1]} hex digits; it must have 64 (32 bytes), after the 0x prefix. The engine did not identify the field. Check the request; the engine error is shown below.`;
 
-  if(result.error?.code==='InvalidRequest')return 'The supplied request could not be processed, so no scripts were run. Check the input and open Full engine response for the original error.';
+  if(result.error?.code==='InvalidRequest')return 'The supplied request could not be processed, so no scripts were run. Check the input; the engine error is shown below.';
 
   if(result.error?.code==='Script' && /^ScriptNotFound\b/.test(result.error?.message ?? ''))return 'The selected script group was not found in this snapshot. Open Settings → Verification scope and choose a listed group, or enter the full script hash (not the code hash). Check the group kind and supplied cells.';
   const missingExtension=result.error?.code==='MissingContext' && /^explicit extension data or null required for (0x[0-9a-f]{64})$/i.exec(result.error?.message ?? '');
@@ -70,14 +70,22 @@ export function explain(result, request) {
     const hash=`0x${invalidGroup[1]}`;const encoded=invalidGroup[2];const index=parseInt(encoded.match(/../g).reverse().join(''),16);
     const matches=Array.isArray(request?.transaction?.cell_deps)?request.transaction.cell_deps.flatMap((dep,i)=>{const point=dep?.out_point;try{return dep?.dep_type==='dep_group'&&typeof point?.tx_hash==='string'&&point.tx_hash.toLowerCase()===hash.toLowerCase()&&typeof point?.index==='string'&&/^0x[0-9a-f]+$/i.test(point.index)&&BigInt(point.index)===BigInt(index)?[i]:[];}catch{return [];}}):[];
     const location=matches.length?matches.map(i=>`Cell dep index ${i}`).join(', '):`outpoint ${hash}:0x${index.toString(16)}`;
-    return `The engine could not resolve the dependency group at ${location}. Check the group cell's encoded member outpoints and supplied cells. Open Full engine response for the exact error.`;
+    return `The engine could not resolve the dependency group at ${location}. Check the group cell's encoded member outpoints and supplied cells. The engine error is shown below.`;
   }
   if (/OutputsSumOverflow|OutputsCapacity|CapacityOverflow|outputs capacity.*inputs|outputs sum/i.test(error)) return 'The new cells contain more CKB than the inputs provide. A transaction cannot create extra CKB. Lower the new cell capacity and run again.';
   if (/ExceededMaximumCycles|CyclesExceeded|cycles.*exceed|exceed.*cycles/i.test(error)) return 'The computation budget ran out. The VM could not finish within this limit. Try the normal cycle budget; this does not change the transaction fee.';
   const scriptFailure=result.error?.code==='InvalidTransaction' && /^Script\(TransactionScriptError \{ source: (Inputs|Outputs)\[([0-9]+)\]\.(Lock|Type), cause: ValidationFailure: see error code (-?[0-9]+) on page \S+ \}\)$/.exec(result.error?.message ?? '');
-  if(scriptFailure){const [,side,index,kind,code]=scriptFailure;return `A script rejected this snapshot: ${side}[${index}].${kind}, error code ${code}. Open Full engine response for the original error.`;}
-  if (/Script.*ValidationFailure|ValidationFailure|script_failure/i.test(error)) return 'A script rejected this snapshot. Open Full engine response for its exact reason.';
+  if(scriptFailure){const [,side,index,kind,code]=scriptFailure;return `A script rejected this snapshot: ${side}[${index}].${kind}, error code ${code}. The engine error is shown below.`;}
+  if (/Script.*ValidationFailure|ValidationFailure|script_failure/i.test(error)) return 'A script rejected this snapshot. The engine error is shown below.';
   if (/OccupiedCapacity|InsufficientCellCapacity/i.test(error)) return 'The new cell is too small to hold its data and scripts. Increase its capacity and run again.';
-  return 'The engine rejected this snapshot. Open Full engine response for its exact reason. A failure can come from a transaction rule, a script, or incomplete supplied context.';
+  return 'The engine rejected this snapshot. The engine error is shown below. A failure can come from a transaction rule, a script, or incomplete supplied context.';
 }
 
+
+// Only this exact upstream message shape and official by-data-hash URL become a link.
+// All other engine text remains inert. The JSON response always retains the original.
+export function scriptErrorDocumentation(error) {
+  if (error?.code !== 'InvalidTransaction') return null;
+  const match = /^Script\(TransactionScriptError \{ source: (?:Inputs|Outputs)\[[0-9]+\]\.(?:Lock|Type), cause: ValidationFailure: see error code (-?[0-9]+) on page (https:\/\/nervosnetwork\.github\.io\/ckb-script-error-codes\/by-data-hash\/[0-9a-f]{64}\.html#(-?[0-9]+)) \}\)$/.exec(error.message ?? '');
+  return match && match[1] === match[3] ? match[2] : null;
+}

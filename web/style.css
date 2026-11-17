@@ -104,3 +104,35 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 .inspector .list-add-controls>button{margin:0;max-width:100%;min-height:44px}
 .list-add-controls>select,.list-add-controls>.wb-field{flex:1 1 100%;min-width:0;width:100%;margin:0}
 .list-add-controls select{min-height:44px;max-width:100%}
+
+/* Results are an inspectable report, not a hidden JSON payload. */
+.output{margin-top:20px;border:1px solid var(--line);border-radius:14px;padding:26px;scroll-margin-top:20px;min-width:0;background:#172014}
+.output[data-kind="success"]{border-top:3px solid var(--lime)}
+.output[data-kind="error"]{border-top:3px solid #ffbcab}
+.result-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:24px}
+.result-eyebrow{display:block;font-size:10px;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px}
+.output #summary{font-size:24px;line-height:1.3;letter-spacing:-.5px;margin:0;font-weight:600;overflow-wrap:anywhere}
+.result-verdict{flex-shrink:0;border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-size:12px;color:var(--lime)}
+.output[data-kind="error"] .result-verdict{color:#ffbcab;border-color:#755044}
+.result-verdict:empty{display:none}
+.output .result-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;padding:20px 0;margin:0 0 22px;border-block:1px solid var(--line)}
+.result-metrics>div{min-width:0}.result-metrics span,.result-metrics small{display:block;font-size:11px;color:var(--muted)}
+.result-metrics strong{display:block;font-size:18px;font-weight:550;line-height:1.5;margin-top:6px;overflow-wrap:anywhere}.result-metrics small{margin-top:4px}
+.result-explanation h3,.engine-error h3{margin:0 0 8px;font-size:13px}.output .explanation{padding:0;border:0;margin:0;background:none;font-size:14px;line-height:1.7;white-space:pre-line;overflow-wrap:anywhere}
+.engine-error{margin:20px 0;padding:16px;border:1px solid #755044;border-radius:8px;background:#281d18;color:#ffccbd;min-width:0}
+.engine-error pre{padding:0;margin:0;background:none;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;font-size:12px;line-height:1.7;max-height:240px;overflow:auto}
+.output details{border-top:1px solid var(--line);margin-top:20px}.output details>summary{padding-block:16px;font-size:13px}.output #group-members{white-space:pre-line;font-size:13px;line-height:1.9;margin:0 0 10px;overflow-wrap:anywhere}.output .requested-scope{font-size:12px;overflow-wrap:anywhere}.output #result{max-height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:600px){.output{padding:18px}.output #summary{font-size:20px}.result-heading{gap:10px}.output .result-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.result-metrics strong{font-size:16px}}
+@media(prefers-reduced-motion:no-preference){.output:not([hidden]){animation:result-appear 180ms ease-out}@keyframes result-appear{from{opacity:.5;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}}
+
+.output .result-metrics{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin:22px 0}
+.output .result-metrics[hidden],.result-metrics>div[hidden]{display:none}
+.output:not([data-kind="success"]) .result-metrics{display:flex;flex-wrap:wrap;gap:24px;padding:14px 0}
+.output:not([data-kind="success"]) .result-metrics[hidden]{display:none}
+.output:not([data-kind="success"]) .result-metrics strong{font-size:14px}
+#engine-error-doc{display:inline-block;margin-top:12px;font:13px/1.6 system-ui,sans-serif}
+#engine-error-doc[hidden]{display:none}
+@media(max-width:600px){.output .result-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* The metric row already separates verified group details. */
+.output #group-details{border-top:0;margin-top:0}
