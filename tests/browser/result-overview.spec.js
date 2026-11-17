@@ -33,6 +33,7 @@ test('result report prioritizes errors and captures desktop and narrow context',
   await run(page);
   await expect(page.locator('#cycles')).toHaveText('539');
   await expect(page.locator('#result-fee')).toHaveText('0 CKB');
+  await expect(page.getByText('Transaction fee (from snapshot)', { exact: true })).toBeVisible();
   await expect(page.locator('#explanation')).not.toContainText('Fee in this snapshot');
   await expect(page.locator('.output')).toBeFocused();
   await evidence(page, 'result-success-desktop');

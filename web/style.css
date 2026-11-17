@@ -15,7 +15,7 @@
 
 .cell-row{display:grid;grid-template-columns:minmax(0,1fr) 52px;align-items:center;border-left:3px solid var(--script,var(--line));overflow:hidden}.cell-row .cell-preview{min-width:0;border-left:0!important}.list-tools{flex-direction:column;justify-content:center;gap:0;padding:4px}.list-tools button{width:44px;min-width:44px;min-height:44px;padding:4px}.cell-identity{display:block;color:var(--muted);font:10px/1.4 ui-monospace,monospace;overflow-wrap:anywhere;margin-bottom:6px}.script-chip.no-type{--script:#687566;color:#c0cabe;background:#252d24}.inspector-identity{font:12px/1.5 ui-monospace,monospace;overflow-wrap:anywhere;color:var(--muted)}
 
-.rail-label{width:112px}.input-help summary,.rail-help summary{padding:7px 0;font-size:11px}.input-help p,.rail-help p{margin:5px 0 10px}.rail-help{border-top:1px solid var(--line)}
+.rail-label{width:112px}.input-help summary,.rail-help summary{padding:7px 0;font-size:11px}.input-help p,.rail-help p{margin:5px 0 10px}.rail-help{border-top:0}
 @supports (interpolate-size:allow-keywords) and (selector(details::details-content)){@media (prefers-reduced-motion:no-preference){#advanced,.boundaries,.input-help,.rail-help,.inspector details{interpolate-size:allow-keywords}#advanced::details-content,.boundaries::details-content,.input-help::details-content,.rail-help::details-content,.inspector details::details-content{block-size:0;overflow:clip;opacity:0;transition:block-size 180ms ease,opacity 140ms ease,content-visibility 180ms allow-discrete}#advanced[open]::details-content,.boundaries[open]::details-content,.input-help[open]::details-content,.rail-help[open]::details-content,.inspector details[open]::details-content{block-size:auto;opacity:1}}}
 
 .header-draft{border:1px solid var(--line);border-radius:8px;padding:14px;margin:14px 0}.header-draft-actions{display:flex;gap:8px;flex-wrap:wrap}.header-draft .hint{overflow-wrap:anywhere}
@@ -136,3 +136,11 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 
 /* The metric row already separates verified group details. */
 .output #group-details{border-top:0;margin-top:0}
+
+/* Match toolbar controls while retaining the native disclosure marker. */
+.workspace-actions{flex-wrap:wrap;flex-shrink:0}
+.workspace-actions #download,.example-menu>summary{min-height:44px;padding:11px 15px;font-size:12px;font-weight:600;line-height:20px;white-space:nowrap}
+/* Give the local draft disclosure, explanation, action and list a steady rhythm. */
+.local-drafts[open]{padding-bottom:12px}
+.local-drafts>p{margin:0 0 12px}
+#refresh-drafts{margin-bottom:12px}

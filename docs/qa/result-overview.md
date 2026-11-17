@@ -5,7 +5,7 @@ Base: `5d96728438e074471d8560c2dcd006e5a6ed6cce`.
 ## Changes
 
 - A visible verdict and primary conclusion lead the report.
-- Verified scope, consumed cycles / configured limit, reported snapshot fee, and elapsed time are grouped into a responsive metric row.
+- Verified scope, consumed cycles / configured limit, reported transaction fee (from snapshot), and elapsed time are grouped into a responsive metric row.
 - Explanation and exact engine error are visible without opening the JSON response. Error text wraps, with a bounded scroll area for long errors.
 - Successful script-group membership opens by default; selected-group verification retains its explicit limited-scope warning.
 - Completing a run focuses and scrolls to the result, respecting reduced-motion preference. Changing inputs clears stale data. Canceling an editor restores the report's values and disclosure state.
