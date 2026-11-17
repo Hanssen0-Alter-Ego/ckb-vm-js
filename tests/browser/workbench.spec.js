@@ -477,3 +477,15 @@ test('header manager retains one transaction across existing links and repeated 
   if(cancel){await page.getByRole('button',{name:'Cancel changes'}).click();expect(await request.inputValue()).toBe(before);}else{const applied=await request.inputValue();await done(page);expect(await request.inputValue()).toBe(applied);await page.getByRole('button',{name:'Run verification'}).click();await expect(page.locator('#status')).toHaveText('Passed snapshot');}
  }
 });
+
+for(const [kind,manager,move,remove,notice] of [
+ ['header_deps','Manage header deps','Move header dependency index 0 down','Remove header dep index 0','Removed header dependency index 0.'],
+ ['cell_deps','Manage cell deps','Move cell dependency index 0 down','Remove cell dependency index 0','Removed cell dependency index 0.'],
+ ['witnesses','Manage witnesses','Move witness index 0 down','Remove witness index 0','Removed witness index 0.']
+])test(`${kind}: confirmed removal replaces sorting feedback and cancel restores the session`,async({page})=>{
+ await ready(page);await page.locator('#advanced summary').click();const input=page.locator('#request');const r=JSON.parse(await input.inputValue());r.transaction.header_deps=['0x'+'ab'.repeat(32),'0x'+'cd'.repeat(32)];r.transaction.cell_deps.push(structuredClone(r.transaction.cell_deps[0]));r.transaction.witnesses=['0x12','0x34'];await input.fill(JSON.stringify(r));await page.locator('#advanced summary').click();const before=await input.inputValue();
+ await page.getByRole('button',{name:manager,exact:true}).click();await page.getByRole('button',{name:move,exact:true}).click();const status=page.locator('dialog [role=status]');await expect(status).toContainText('Moved ');const sorted=await input.inputValue();const moved=await status.textContent();const button=page.getByRole('button',{name:new RegExp('^'+remove+'(?: ·|$)')});
+ page.once('dialog',d=>d.dismiss());await button.click();expect(await input.inputValue()).toBe(sorted);await expect(status).toHaveText(moved);
+ page.once('dialog',d=>d.accept());await button.click();await expect(status).toContainText(notice);await expect(page.locator('dialog')).not.toContainText('Moved ');const after=JSON.parse(await input.inputValue());expect(after.transaction[kind]).toHaveLength(1);expect(after.context).toEqual(r.context);
+ await page.getByRole('button',{name:'Cancel changes'}).click();expect(await input.inputValue()).toBe(before);
+});
