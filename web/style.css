@@ -98,3 +98,9 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 .inspector details::details-content{transition:none}
 
 @media(max-width:480px){.dep-rail{grid-template-columns:minmax(0,1fr) auto}.dep-rail>.rail-label{grid-column:1;grid-row:1}.dep-rail>.secondary{grid-column:2;grid-row:1}.dep-items{grid-column:1/-1;grid-row:2}.dep-items .dep-dot{max-width:100%;height:auto;min-height:44px;padding-block:8px}}
+
+/* Explicit gaps survive wrapping in dependency creation controls. */
+.list-add-controls{display:flex;flex-wrap:wrap;align-items:flex-start;gap:10px;margin-block:12px}
+.inspector .list-add-controls>button{margin:0;max-width:100%;min-height:44px}
+.list-add-controls>select,.list-add-controls>.wb-field{flex:1 1 100%;min-width:0;width:100%;margin:0}
+.list-add-controls select{min-height:44px;max-width:100%}
