@@ -33,4 +33,18 @@ Only an exact upstream InvalidTransaction script-failure message with an HTTPS `
 
 Regression coverage now includes failure ordering, missing metrics, safe links, repeated success/failure/runtime/cancel/timeout runs, invalid input, error-report restoration after editor cancellation, and narrow success/failure/selected-group report plus full-page screenshots. Runtime/cancel/timeout tests inject controlled worker responses; the main presentation test uses real WASM.
 
-This follow-up's browser and screenshot acceptance remains pending its own exact-head CI; earlier screenshots do not validate these changes. Local browser restrictions remain in force.
+### Completed second-round validation
+
+[CI run 44107370625](https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/actions/runs/44107370625) passed for PR head `2582ba8547750cd6cc890bc281a748e84fc706e3`: 59 unit tests, typecheck, native/WASM and differential checks, 102 Chromium browser tests, package consumer checks, and artifact round-trip.
+
+The pull-request workflow built GitHub's **test merge** `a0294cb143adcdf1349edd6de7af9c7931c7b419` of that head into base `5d96728438e074471d8560c2dcd006e5a6ed6cce`. This is the build identifier shown in the screenshots; it was not a direct head checkout or a merge into main.
+
+[Browser artifact 14338438953](https://github.com/Hanssen0-Alter-Ego/ckb-vm-js/actions/runs/44107370625/artifacts/14338438953) was downloaded and its SHA-256 verified: `ced1153f863c3d68f69ef3729412e0f6bc7c00723321b6794b6a52a126f7d4ae`. Reviewed desktop success/failure reports and narrow success/failure/selected-group reports, plus all three corresponding narrow full-page views under `evidence/`. Independent review also inspected desktop success/full-page, narrow failure/full-page and selected-group images. Error details precede metadata, unavailable metrics are absent, requested and verified scopes remain distinct, and the report follows the run controls without clipping in these views.
+
+The previous four-image claim was accurate: independent inspection also confirmed `group-scope-mobile.png` at the earlier artifact root. It is outside the `evidence/` directory.
+
+### Final divider cleanup
+
+Second-round screenshots showed the metrics' bottom border followed by the group details' top border. Remove only the redundant group divider and its top margin, retaining the metric border and section spacing. Final CI and screenshot review for this CSS-only cleanup are recorded on PR #5; the completed second-round results above remain tied to their stated revision.
+
+Local browser restrictions remain in force and were not bypassed. Coverage is Chromium/fixture-specific; cross-browser, screen-reader and reduced-motion acceptance are not claimed. PR remains Draft; no merge or deployment performed.

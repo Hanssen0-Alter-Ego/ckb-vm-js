@@ -133,3 +133,6 @@ body:has(dialog[open]){overflow:hidden}.field-error{display:block;margin-top:5px
 #engine-error-doc{display:inline-block;margin-top:12px;font:13px/1.6 system-ui,sans-serif}
 #engine-error-doc[hidden]{display:none}
 @media(max-width:600px){.output .result-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* The metric row already separates verified group details. */
+.output #group-details{border-top:0;margin-top:0}
